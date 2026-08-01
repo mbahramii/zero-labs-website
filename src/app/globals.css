@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+/* ---------- Design tokens (dark, Apple-minimal + neumorphism) ---------- */
+:root {
+  --bg: #050914;
+  --surface: rgba(22, 40, 74, 0.55);
+  --surface-soft: rgba(8, 16, 34, 0.65);
+  --border: rgba(59, 130, 246, 0.22);
+  --border-strong: rgba(59, 130, 246, 0.4);
+  --text-primary: #f1f5fc;
+  --text-secondary: #9db2d9;
+  --text-tertiary: #64749c;
+  --accent: #2f6feb;
+  --accent-light: #5b93ff;
+  --success: #34d399;
+}
+/* Register tokens as Tailwind utilities: bg-bg, text-text-primary, border-border, bg-accent, etc. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-accent: var(--accent);
+  --color-accent-light: var(--accent-light);
+  --color-success: var(--success);
+  --font-sans: var(--font-vazirmatn);
+}
+
+/* ---------- Neumorphism helpers ---------- */
+
+/* Raised/convex surface — used for cards floating above the dark background */
+.neu-card {
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  box-shadow:
+    0 0 0 1px rgba(59, 130, 246, 0.05),
+    0 24px 48px -20px rgba(47, 111, 235, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Recessed/concave surface — used for stat tiles nested inside a card */
+.neu-inset {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.4),
+    inset -3px -3px 10px rgba(59, 130, 246, 0.05);
+}
+
+/* Gradient text for the highlighted headline word */
+.gradient-text {
+  background: linear-gradient(90deg, var(--accent-light), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Gentle ambient bob for floating dashboard/social icons */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float {
+    animation: none;
+  }
+}
+
+body {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(47, 111, 235, 0.12), transparent 55%),
+    radial-gradient(circle at 85% 20%, rgba(47, 111, 235, 0.07), transparent 45%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  font-family: var(--font-vazirmatn), Arial, Helvetica, sans-serif;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+}
