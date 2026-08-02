@@ -1,4 +1,5 @@
 import { ArrowLeft, Play, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import HeroVisual from "./HeroVisual";
 import MobileHeroCard from "./MobileHeroCard";
 
@@ -31,13 +32,13 @@ export default function Hero() {
           </p>
 
           <div className="mb-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
-            <a
-              href="#start"
+            <Link
+              href="/register"
               className="flex items-center gap-2 rounded-full bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-[0_16px_40px_-12px_rgba(47,111,235,0.7)] transition-transform hover:scale-[1.03]"
             >
               <ArrowLeft className="h-4 w-4" />
               شروع رایگان
-            </a>
+            </Link>
            <a 
               href="#demo"
               className="flex items-center gap-2 rounded-full border border-border px-6 py-3.5 text-sm font-semibold text-text-primary transition-colors hover:border-border-strong"

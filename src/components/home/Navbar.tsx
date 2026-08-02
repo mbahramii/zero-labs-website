@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Menu, Sparkles, X } from "lucide-react";
 
 const NAV_LINKS = [
@@ -19,12 +20,12 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 border-b border-border bg-bg/80 backdrop-blur-lg">
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         {/* Logo */}
-        <a href="#" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/15 text-accent">
             <Sparkles className="h-4 w-4" />
           </span>
           <span className="text-lg font-bold text-text-primary">مزون‌فلو</span>
-        </a>
+        </Link>
 
         {/* Desktop nav links */}
         <ul className="hidden items-center gap-8 md:flex">
@@ -41,20 +42,19 @@ export default function Navbar() {
 
         {/* Desktop actions */}
         <div className="hidden items-center gap-3 md:flex">
-          <a
-            href="#login"
+          <Link
+            href="/login"
             className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
           >
             ورود
-          </a>
-          <a
-            href="#start"
+          </Link>
+          <Link
+            href="/register"
             className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(47,111,235,0.7)] transition-transform hover:scale-[1.03]"
           >
             شروع رایگان
-          </a>
+          </Link>
         </div>
-
         {/* Mobile menu toggle */}
         <button
           type="button"
@@ -83,15 +83,15 @@ export default function Navbar() {
             ))}
           </ul>
           <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
-            <a href="#login" className="text-sm font-medium text-text-secondary">
+            <Link href="/login" className="text-sm font-medium text-text-secondary">
               ورود
-            </a>
-            <a
-              href="#start"
+            </Link>
+            <Link
+              href="/register"
               className="rounded-full bg-accent px-5 py-2.5 text-center text-sm font-semibold text-white"
             >
               شروع رایگان
-            </a>
+            </Link>
           </div>
         </div>
       )}
