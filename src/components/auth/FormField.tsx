@@ -11,6 +11,7 @@ type FormFieldProps = {
   placeholder: string;
   icon: LucideIcon;
   autoComplete?: string;
+  maxLength?: number;
 };
 
 export default function FormField({
@@ -20,6 +21,7 @@ export default function FormField({
   placeholder,
   icon: Icon,
   autoComplete,
+  maxLength,
 }: FormFieldProps) {
   const isPassword = type === "password";
   // Only relevant for password fields — toggles the native input type.
@@ -34,6 +36,7 @@ export default function FormField({
           type={isPassword ? (isVisible ? "text" : "password") : type}
           placeholder={placeholder}
           autoComplete={autoComplete}
+          maxLength={maxLength}
           className={`w-full rounded-xl border border-border bg-surface-soft py-3 pr-11 text-sm text-text-primary placeholder:text-text-tertiary focus:border-border-strong focus:outline-none ${
             isPassword ? "pl-11" : "pl-4"
           }`}

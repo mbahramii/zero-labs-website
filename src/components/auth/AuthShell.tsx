@@ -8,9 +8,10 @@ type AuthShellProps = {
   headingIcon?: ReactNode;
   subtitle: string;
   children: ReactNode;
+  showTabs?: boolean;
 };
 
-export default function AuthShell({ heading, headingIcon, subtitle, children }: AuthShellProps) {
+export default function AuthShell({ heading, headingIcon, subtitle, children, showTabs = true }: AuthShellProps) {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center px-6 py-16">
       {/* Logo, pinned to the page corner rather than the card */}
@@ -28,7 +29,7 @@ export default function AuthShell({ heading, headingIcon, subtitle, children }: 
         </h1>
         <p className="mb-8 text-center text-sm text-text-secondary">{subtitle}</p>
 
-        <AuthTabs />
+             {showTabs && <AuthTabs />}
 
         {children}
       </div>
