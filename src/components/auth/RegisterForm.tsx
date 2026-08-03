@@ -14,16 +14,31 @@ export default function RegisterForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setIsLoading(true);
 
     const formData = new FormData(event.currentTarget);
+    const name = String(formData.get("name") ?? "").trim();
+    const phone = String(formData.get("phone") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+
+    if (!name || !phone || !password) {
+      setError("لطفاً همه فیلدها را تکمیل کنید.");
+      return;
+    }
+
+    if (!phone.startsWith("09") && !phone.startsWith("07")) {
+      setError("شماره موبایل معتبر نیست.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("رمز عبور حداقل ۸ کاراکتر باشد.");
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      await registerUser({
-        name: String(formData.get("name") ?? ""),
-        phone: String(formData.get("phone") ?? ""),
-        password: String(formData.get("password") ?? ""),
-      });
+      await registerUser({ name, phone, password });
       // TODO: redirect to the dashboard (or a verification step) once
       // registration succeeds, e.g. router.push("/dashboard");
     } catch (err) {

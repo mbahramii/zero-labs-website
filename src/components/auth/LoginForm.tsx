@@ -14,16 +14,26 @@ export default function LoginForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setIsLoading(true);
 
     const formData = new FormData(event.currentTarget);
+    const username = String(formData.get("username") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+    const remember = formData.get("remember") === "on";
+
+    if (!username || !password) {
+      setError("لطفاً همه فیلدها را تکمیل کنید.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("رمز عبور حداقل ۸ کاراکتر باشد.");
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      await loginUser({
-        username: String(formData.get("username") ?? ""),
-        password: String(formData.get("password") ?? ""),
-        remember: formData.get("remember") === "on",
-      });
+      await loginUser({ username, password, remember });
       // TODO: redirect to the dashboard once login succeeds, e.g.
       // router.push("/dashboard");
     } catch (err) {
