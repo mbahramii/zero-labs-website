@@ -45,3 +45,34 @@ export function loginUser(payload: LoginPayload) {
 export function registerUser(payload: RegisterPayload) {
   return postJSON<RegisterPayload, AuthResponse>("/api/auth/register", payload);
 }
+
+// TODO: replace the paths below with your real backend routes once ready.
+
+export type RequestResetPayload = {
+  phone: string;
+};
+
+export type VerifyResetCodePayload = {
+  phone: string;
+  code: string;
+};
+
+export type ResetPasswordPayload = {
+  phone: string;
+  code: string;
+  password: string;
+};
+
+export type EmptyResponse = Record<string, never>;
+
+export function requestPasswordReset(phone: string) {
+  return postJSON<RequestResetPayload, EmptyResponse>("/api/auth/forgot-password", { phone });
+}
+
+export function verifyResetCode(payload: VerifyResetCodePayload) {
+  return postJSON<VerifyResetCodePayload, EmptyResponse>("/api/auth/verify-reset-code", payload);
+}
+
+export function resetPassword(payload: ResetPasswordPayload) {
+  return postJSON<ResetPasswordPayload, EmptyResponse>("/api/auth/reset-password", payload);
+}
