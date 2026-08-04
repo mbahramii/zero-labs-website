@@ -2,7 +2,7 @@
 name = "social-publish-backend"
 version = "0.1.0"
 description = "Backend API for the social publishing platform"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.141.1",
     "uvicorn[standard]>=0.35.0",
@@ -16,7 +16,7 @@ dev = ["ruff>=0.16.0", "pytest>=8.4.0", "pytest-asyncio>=1.0.0", "httpx>=0.28.0"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "N", "UP", "D"]

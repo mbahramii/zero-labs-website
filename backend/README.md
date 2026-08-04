@@ -9,7 +9,7 @@ and integrate through the Redis job queue and internal callback endpoints.
 
 ## Stack
 
-- Python 3.11+, FastAPI (fully async)
+- Python 3.13+, FastAPI (fully async)
 - SQLAlchemy 2.0 async + asyncpg, PostgreSQL
 - Pydantic v2 + pydantic-settings (fail-fast configuration)
 - Ruff (lint + format)
