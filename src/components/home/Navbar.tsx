@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, Sparkles, X } from "lucide-react";
 
@@ -15,6 +15,15 @@ const NAV_LINKS = [
 export default function Navbar() {
   // Controls the mobile dropdown menu only; desktop nav is always visible.
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // Authentication state (temporary until backend integration).
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    // Check if an authenticated session exists.
+    const auth = localStorage.getItem("auth");
+    setIsLoggedIn(!!auth);
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-bg/80 backdrop-blur-lg">
@@ -42,19 +51,31 @@ export default function Navbar() {
 
         {/* Desktop actions */}
         <div className="hidden items-center gap-3 md:flex">
-          <Link
-            href="/login"
-            className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
-          >
-            ورود
-          </Link>
-          <Link
-            href="/register"
-            className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(47,111,235,0.7)] transition-transform hover:scale-[1.03]"
-          >
-            شروع رایگان
-          </Link>
-        </div>
+  {isLoggedIn ? (
+    <Link
+      href="/dashboard"
+      className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(47,111,235,0.7)] transition-transform hover:scale-[1.03]"
+    >
+      داشبورد
+    </Link>
+  ) : (
+    <>
+      <Link
+        href="/login"
+        className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
+      >
+        ورود
+      </Link>
+
+      <Link
+        href="/register"
+        className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(47,111,235,0.7)] transition-transform hover:scale-[1.03]"
+      >
+        شروع رایگان
+      </Link>
+    </>
+  )}
+</div>
         {/* Mobile menu toggle */}
         <button
           type="button"
@@ -83,16 +104,34 @@ export default function Navbar() {
             ))}
           </ul>
           <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
-            <Link href="/login" className="text-sm font-medium text-text-secondary">
-              ورود
-            </Link>
-            <Link
-              href="/register"
-              className="rounded-full bg-accent px-5 py-2.5 text-center text-sm font-semibold text-white"
-            >
-              شروع رایگان
-            </Link>
-          </div>
+  {isLoggedIn ? (
+    <Link
+      href="/dashboard"
+      className="rounded-full bg-accent px-5 py-2.5 text-center text-sm font-semibold text-white"
+      onClick={() => setIsMenuOpen(false)}
+    >
+      داشبورد
+    </Link>
+  ) : (
+    <>
+      <Link
+        href="/login"
+        className="text-sm font-medium text-text-secondary"
+        onClick={() => setIsMenuOpen(false)}
+      >
+        ورود
+      </Link>
+
+      <Link
+        href="/register"
+        className="rounded-full bg-accent px-5 py-2.5 text-center text-sm font-semibold text-white"
+        onClick={() => setIsMenuOpen(false)}
+      >
+        شروع رایگان
+      </Link>
+    </>
+  )}
+</div>
         </div>
       )}
     </header>
