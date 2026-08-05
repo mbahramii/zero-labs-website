@@ -6,8 +6,11 @@ import Link from "next/link";
 import FormField from "./FormField";
 import AuthSubmitButton from "./AuthSubmitButton";
 import { loginUser } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
+  const router = useRouter();
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,14 +36,31 @@ export default function LoginForm() {
     setIsLoading(true);
 
     try {
-      await loginUser({ username, password, remember });
-      // TODO: redirect to the dashboard once login succeeds, e.g.
-      // router.push("/dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "ورود ناموفق بود.");
-    } finally {
-      setIsLoading(false);
-    }
+  // const data = await loginUser({
+  //   username,
+  //   password,
+  //   remember,
+  // });
+
+  const data = {
+  token: "mock-jwt-token",
+};
+  // Store the authenticated user locally until the backend is connected.
+  localStorage.setItem(
+    "auth",
+    JSON.stringify({
+      token: data.token,
+      user: {
+        username,
+      },
+    })
+  );
+
+  // Redirect the user after a successful login.
+  router.push("/");
+} catch (err) {
+  setError(err instanceof Error ? err.message : "ورود ناموفق بود.");
+}
   }
 
   return (
