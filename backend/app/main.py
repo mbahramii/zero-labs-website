@@ -8,17 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.content import router as content_router
 from app.core.config import get_settings
-from app.core.database import Base, engine
-from app.models import content, platform  # noqa: F401 — imported for table registration
 
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Create database tables on startup (dev-only, replaced by Alembic later)."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Schema is managed by Alembic (run `alembic upgrade head`)."""
     yield
 
 

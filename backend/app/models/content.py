@@ -16,7 +16,7 @@ class ContentJob(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     description: Mapped[str] = mapped_column(String(500))
-    platform_id: Mapped[int] = mapped_column(ForeignKey("platforms.id"), index=True)
+    platform_id: Mapped[int] = mapped_column(ForeignKey("platforms.id", ondelete="RESTRICT"), index=True)
     platform: Mapped[Platform] = relationship()
     status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
