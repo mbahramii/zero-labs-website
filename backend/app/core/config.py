@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     debug: bool = False
     database_url: str 
     cors_origins_raw: str = "http://localhost:3000"
+    secret_key: str  # missing => fail-fast; HS256 signing key
+    access_token_ttl_minutes: int = 30
+    refresh_token_ttl_days: int = 30
+    otp_ttl_minutes: int = 5
+    otp_hourly_cap: int = 3
 
     @property
     def cors_origins(self) -> list[str]:

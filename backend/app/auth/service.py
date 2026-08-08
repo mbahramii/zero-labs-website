@@ -1,0 +1,277 @@
+"""Auth business logic: registration, login, refresh, password reset."""
+
+import secrets
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
+
+from sqlalchemy import select, update , func , exists
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.jwt import create_access_token
+from app.auth.models import OtpCode, RefreshToken, User
+from app.auth.otp import generate_otp_code, hash_otp_code
+from app.auth.password import hash_password, verify_password
+from app.auth.phone import normalize_phone_number
+from app.auth.schemas import TokenResponse
+from app.auth.sms import get_sms_sender
+from app.core.config import get_settings
+from app.core.exceptions import AuthenticationError, ConflictError, InvalidInputError, NotFoundError , RateLimitError
+from app.core.security import hash_token
+
+MAX_OTP_ATTEMPTS = 5
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_LOCK_MINUTES = 15
+
+
+def _normalize(raw: str) -> str:
+    """Normalize raw phone input or raise InvalidInputError."""
+    try:
+        return normalize_phone_number(raw)
+    except Exception as exc:
+        raise InvalidInputError("شماره موبایل معتبر نیست.") from exc
+
+
+def _now() -> datetime:
+    """Return the current UTC time."""
+    return datetime.now(timezone.utc)
+
+
+def _issue_tokens(db: AsyncSession, user: User, device_info: str | None) -> TokenResponse:
+    """Create an access token plus a fresh refresh-token family member."""
+    settings = get_settings()
+    raw_refresh = secrets.token_urlsafe(48)
+    db.add(
+        RefreshToken(
+            user_id=user.id,
+            token_hash=hash_token(raw_refresh),
+            family=str(uuid4()),
+            device_info=device_info,
+            expires_at=_now() + timedelta(days=settings.refresh_token_ttl_days),
+        )
+    )
+    return TokenResponse(access_token=create_access_token(user.id), refresh_token=raw_refresh)
+
+
+async def _consume_otp(db: AsyncSession, phone: str, purpose: str, code: str) -> OtpCode:
+    """Validate an OTP code, enforcing expiry, attempt cap, and single use."""
+    result = await db.execute(
+        select(OtpCode)
+        .where(
+            OtpCode.phone_number == phone,
+            OtpCode.purpose == purpose,
+            OtpCode.used_at.is_(None),
+        )
+        .order_by(OtpCode.created_at.desc())
+        .limit(1)
+    )
+    otp = result.scalar_one_or_none()
+    if otp is None:
+        raise NotFoundError("کدی برای این شماره یافت نشد؛ دوباره درخواست دهید.")
+    if otp.expires_at <= _now():
+        raise AuthenticationError("کد منقضی شده است.")
+    if otp.attempts >= MAX_OTP_ATTEMPTS:
+        raise AuthenticationError("تعداد تلاش‌ها تمام شد؛ کد جدید درخواست دهید.")
+    if otp.code_hash != hash_otp_code(code):
+        otp.attempts += 1
+        raise AuthenticationError("کد نادرست است.")
+    otp.used_at = _now()
+    return otp
+
+
+async def _invalidate_previous_otps(db: AsyncSession, phone: str, purpose: str) -> None:
+    """Expire all unused OTPs for the phone+purpose before issuing a new one."""
+    await db.execute(
+        update(OtpCode)
+        .where(
+            OtpCode.phone_number == phone,
+            OtpCode.purpose == purpose,
+            OtpCode.used_at.is_(None),
+        )
+        .values(expires_at=_now())
+    )
+
+
+async def request_register(db: AsyncSession, raw_phone: str) -> str:
+    """Send a registration OTP; returns the code (dev-only exposure)."""
+    phone = _normalize(raw_phone)
+    await _enforce_otp_rate_limit(db, phone)
+
+    already = await db.execute(
+        select(exists().where(User.phone_number == phone, User.is_verified.is_(True)))
+    )
+    if already.scalar_one():
+        raise ConflictError("این شماره قبلاً ثبت‌نام کرده است.")
+
+    code = generate_otp_code()
+    await _invalidate_previous_otps(db, phone, "register")
+    db.add(
+        OtpCode(
+            phone_number=phone,
+            purpose="register",
+            code_hash=hash_otp_code(code),
+            expires_at=_now() + timedelta(minutes=get_settings().otp_ttl_minutes),
+        )
+    )
+    get_sms_sender().send(phone, f"کد تأیید شما: {code}")
+    return code
+
+
+async def verify_register(
+    db: AsyncSession,
+    raw_phone: str,
+    code: str,
+    password: str,
+    display_name: str | None,
+    device_info: str | None,
+) -> TokenResponse:
+    """Verify the OTP, create/activate the user, and issue tokens."""
+    phone = _normalize(raw_phone)
+    await _consume_otp(db, phone, "register", code)
+
+    result = await db.execute(select(User).where(User.phone_number == phone))
+    user = result.scalar_one_or_none()
+    if user is None:
+        user = User(
+            phone_number=phone,
+            password_hash=hash_password(password),
+            display_name=display_name,
+            is_verified=True,
+        )
+        db.add(user)
+    else:
+        user.password_hash = hash_password(password)
+        user.is_verified = True
+        if display_name:
+            user.display_name = display_name
+    await db.flush()
+    return _issue_tokens(db, user, device_info)
+
+
+async def login(
+    db: AsyncSession, raw_phone: str, password: str, device_info: str | None
+) -> TokenResponse:
+    """Authenticate with phone+password, enforcing lockout policy."""
+    phone = _normalize(raw_phone)
+    generic = AuthenticationError("شماره یا رمز عبور اشتباه است.")
+
+    result = await db.execute(select(User).where(User.phone_number == phone))
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_verified:
+        raise generic
+    if not user.is_active:
+        raise AuthenticationError("حساب کاربری غیرفعال است.")
+    if user.locked_until is not None and user.locked_until > _now():
+        raise AuthenticationError("حساب موقتاً قفل است؛ دقایقی بعد تلاش کنید.")
+
+    if not verify_password(password, user.password_hash):
+        user.failed_login_attempts += 1
+        if user.failed_login_attempts >= MAX_LOGIN_ATTEMPTS:
+            user.locked_until = _now() + timedelta(minutes=LOGIN_LOCK_MINUTES)
+            user.failed_login_attempts = 0
+        raise generic
+
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    return _issue_tokens(db, user, device_info)
+
+
+async def refresh(
+    db: AsyncSession, raw_refresh: str, device_info: str | None
+) -> TokenResponse:
+    """Rotate a refresh token; reuse of a revoked token kills the family."""
+    result = await db.execute(
+        select(RefreshToken).where(RefreshToken.token_hash == hash_token(raw_refresh))
+    )
+    token = result.scalar_one_or_none()
+    if token is None:
+        raise AuthenticationError("نشست معتبر نیست؛ دوباره وارد شوید.")
+
+    now = _now()
+    if token.revoked_at is not None:
+        await db.execute(
+            update(RefreshToken)
+            .where(RefreshToken.family == token.family)
+            .values(revoked_at=now)
+        )
+        raise AuthenticationError("نشست معتبر نیست؛ دوباره وارد شوید.")
+    if token.expires_at <= now:
+        raise AuthenticationError("نشست منقضی شده است؛ دوباره وارد شوید.")
+
+    token.revoked_at = now
+    raw_new = secrets.token_urlsafe(48)
+    db.add(
+        RefreshToken(
+            user_id=token.user_id,
+            token_hash=hash_token(raw_new),
+            family=token.family,
+            device_info=device_info,
+            expires_at=now + timedelta(days=get_settings().refresh_token_ttl_days),
+        )
+    )
+    return TokenResponse(access_token=create_access_token(token.user_id), refresh_token=raw_new)
+
+
+async def logout(db: AsyncSession, raw_refresh: str) -> None:
+    """Revoke the presented refresh token."""
+    result = await db.execute(
+        select(RefreshToken).where(RefreshToken.token_hash == hash_token(raw_refresh))
+    )
+    token = result.scalar_one_or_none()
+    if token is not None:
+        token.revoked_at = _now()
+
+
+async def request_reset(db: AsyncSession, raw_phone: str) -> str | None:
+    """Send a reset OTP if the account exists; never leaks existence."""
+    try:
+        phone = _normalize(raw_phone)
+    except InvalidInputError:
+        return None
+    await _enforce_otp_rate_limit(db, phone)
+
+    exists_result = await db.execute(
+        select(exists().where(User.phone_number == phone, User.is_verified.is_(True)))
+    )
+    if not exists_result.scalar_one():
+        return None
+
+    code = generate_otp_code()
+    await _invalidate_previous_otps(db, phone, "reset")
+    db.add(
+        OtpCode(
+            phone_number=phone,
+            purpose="reset",
+            code_hash=hash_otp_code(code),
+            expires_at=_now() + timedelta(minutes=get_settings().otp_ttl_minutes),
+        )
+    )
+    get_sms_sender().send(phone, f"کد بازیابی رمز شما: {code}")
+    return code
+
+
+async def confirm_reset(db: AsyncSession, raw_phone: str, code: str, new_password: str) -> None:
+    """Set a new password and revoke every session of the user."""
+    phone = _normalize(raw_phone)
+    await _consume_otp(db, phone, "reset", code)
+
+    result = await db.execute(select(User).where(User.phone_number == phone))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise NotFoundError("کاربر یافت نشد.")
+    user.password_hash = hash_password(new_password)
+    await db.execute(
+        update(RefreshToken).where(RefreshToken.user_id == user.id).values(revoked_at=_now())
+    )
+    
+async def _enforce_otp_rate_limit(db: AsyncSession, phone: str) -> None:
+    """Reject when the hourly OTP cap for this phone is reached."""
+    result = await db.execute(
+        select(func.count())
+        .select_from(OtpCode)
+        .where(
+            OtpCode.phone_number == phone,
+            OtpCode.created_at >= _now() - timedelta(hours=1),
+        )
+    )
+    if result.scalar_one() >= get_settings().otp_hourly_cap:
+        raise RateLimitError("تعداد درخواست کد از حد مجاز عبور کرده؛ کمی بعد تلاش کنید.")
