@@ -2,11 +2,15 @@
 
 import pytest
 
-from app.auth.jwt import create_access_token, decode_access_token
-from app.auth.otp import generate_otp_code, hash_otp_code
-from app.auth.password import hash_password, verify_password
-from app.auth.phone import normalize_phone_number
-
+from app.auth.security import (
+    create_access_token,
+    decode_access_token,
+    generate_otp_code,
+    hash_otp_code,
+    hash_password,
+    verify_password,
+    normalize_phone_number,
+)
 
 def test_password_roundtrip() -> None:
     """Hashed password verifies correctly."""

@@ -5,7 +5,7 @@ from fastapi import Depends, Header
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.jwt import decode_access_token
+from app.auth.security import decode_access_token
 from app.auth.models import User
 from app.core.database import get_db
 from app.core.exceptions import AuthenticationError

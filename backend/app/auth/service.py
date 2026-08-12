@@ -7,16 +7,20 @@ from uuid import uuid4
 from sqlalchemy import select, update , func , exists
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.jwt import create_access_token
 from app.auth.models import OtpCode, RefreshToken, User
-from app.auth.otp import generate_otp_code, hash_otp_code
-from app.auth.password import hash_password, verify_password
-from app.auth.phone import normalize_phone_number
 from app.auth.schemas import TokenResponse
 from app.auth.sms import get_sms_sender
+from app.auth.security import (
+    create_access_token,
+    generate_otp_code,
+    hash_otp_code,
+    hash_password,
+    hash_token,
+    normalize_phone_number,
+    verify_password,
+)
 from app.core.config import get_settings
 from app.core.exceptions import AuthenticationError, ConflictError, InvalidInputError, NotFoundError , RateLimitError
-from app.core.security import hash_token
 
 MAX_OTP_ATTEMPTS = 5
 MAX_LOGIN_ATTEMPTS = 5
