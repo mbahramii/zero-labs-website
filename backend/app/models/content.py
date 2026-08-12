@@ -20,6 +20,9 @@ class ContentJob(Base):
     platform: Mapped[Platform] = relationship()
     status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    client_idempotency_key: Mapped[str | None] = mapped_column(
+        String(36), unique=True, nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -2,6 +2,7 @@
 
 import hashlib
 import secrets
+import hmac
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -33,8 +34,12 @@ def generate_otp_code() -> str:
 
 
 def hash_otp_code(code: str) -> str:
-    """Hash an OTP code for at-rest storage."""
-    return hashlib.sha256(code.encode("utf-8")).hexdigest()
+    """HMAC-SHA256 an OTP code with the app secret as pepper."""
+    return hmac.new(
+        get_settings().secret_key.encode("utf-8"),
+        code.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def hash_token(raw: str) -> str:

@@ -41,26 +41,31 @@ app.add_middleware(
 @app.exception_handler(InvalidInputError)
 async def handle_invalid_input(request: Request, exc: InvalidInputError) -> JSONResponse:
     """Map invalid-input domain errors to HTTP 400."""
-    return JSONResponse(status_code=400, content={"message": str(exc)})
+    return JSONResponse(status_code=400, content={"message": str(exc), "code": exc.code})
 
 
 @app.exception_handler(AuthenticationError)
 async def handle_authentication(request: Request, exc: AuthenticationError) -> JSONResponse:
     """Map authentication domain errors to HTTP 401."""
-    return JSONResponse(status_code=401, content={"message": str(exc)})
+    return JSONResponse(status_code=401, content={"message": str(exc), "code": exc.code})
 
-
+    
 @app.exception_handler(NotFoundError)
 async def handle_not_found(request: Request, exc: NotFoundError) -> JSONResponse:
     """Map not-found domain errors to HTTP 404."""
-    return JSONResponse(status_code=404, content={"message": str(exc)})
+    return JSONResponse(status_code=404, content={"message": str(exc), "code": exc.code})
 
 
 @app.exception_handler(ConflictError)
 async def handle_conflict(request: Request, exc: ConflictError) -> JSONResponse:
     """Map conflict domain errors to HTTP 409."""
-    return JSONResponse(status_code=409, content={"message": str(exc)})
+    return JSONResponse(status_code=409, content={"message": str(exc), "code": exc.code})
 
+
+@app.exception_handler(RateLimitError)
+async def handle_rate_limit(request: Request, exc: RateLimitError) -> JSONResponse:
+    """Map rate-limit domain errors to HTTP 429."""
+    return JSONResponse(status_code=429, content={"message": str(exc), "code": exc.code})
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(content_router, prefix="/api/v1")
@@ -70,8 +75,3 @@ app.include_router(content_router, prefix="/api/v1")
 async def healthcheck() -> dict[str, str]:
     """Liveness probe for orchestrators and uptime monitors."""
     return {"status": "ok"}
-
-@app.exception_handler(RateLimitError)
-async def handle_rate_limit(request: Request, exc: RateLimitError) -> JSONResponse:
-    """Map rate-limit domain errors to HTTP 429."""
-    return JSONResponse(status_code=429, content={"message": str(exc)})

@@ -1,6 +1,7 @@
 """Content job endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,6 +19,24 @@ async def create_content_job(
     payload: ContentRequest, db: AsyncSession = Depends(get_db)
 ) -> ContentResponse:
     """Queue a content job after validating the target platform is active."""
+    if payload.idempotency_key is not None:
+        result = await db.execute(
+            select(ContentJob).where(
+                ContentJob.client_idempotency_key == payload.idempotency_key
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing is not None:
+            plat = await db.execute(select(Platform).where(Platform.id == existing.platform_id))
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "id": existing.id,
+                    "status": existing.status,
+                    "platform_code": plat.scalar_one().code,
+                    "created_at": existing.created_at.isoformat(),
+                },
+            )
     result = await db.execute(
         select(Platform).where(Platform.code == payload.platform_code)
     )
@@ -27,7 +46,7 @@ async def create_content_job(
     if not platform.is_active:
         raise HTTPException(status.HTTP_409_CONFLICT, "Platform is currently disabled.")
 
-    job = ContentJob(description=payload.description, platform_id=platform.id)
+    job = ContentJob(description=payload.description, platform_id=platform.id, client_idempotency_key=payload.idempotency_key)
     db.add(job)
     await db.flush()  # assign id + fetch server defaults without committing
     return ContentResponse(

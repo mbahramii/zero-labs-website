@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = 30
     otp_ttl_minutes: int = 5
     otp_hourly_cap: int = 3
+    otp_daily_ip_cap: int = 10
 
     @property
     def cors_origins(self) -> list[str]:

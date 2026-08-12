@@ -31,5 +31,6 @@ class ContentResponse(BaseModel):
 
     id: int
     status: ContentStatus
-    platform_code: str
+    platform_code: str 
+    idempotency_key: str | None = None
     created_at: datetime
