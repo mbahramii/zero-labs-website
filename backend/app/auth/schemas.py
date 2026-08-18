@@ -1,5 +1,7 @@
 """Pydantic schemas for the auth feature."""
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field , ConfigDict
 
 class RegisterRequest(BaseModel):
@@ -75,3 +77,50 @@ class UserOut(BaseModel):
     phone_number: str
     display_name: str | None
     is_verified: bool
+
+
+class RoleCreate(BaseModel):
+    """Payload to create a new role."""
+
+    name: str = Field(min_length=1, max_length=100)
+    actions: list[str]
+    scope: list[dict]
+
+
+class RoleOut(BaseModel):
+    """Public representation of a role."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    actions: list[str]
+    scope: list[dict]
+
+
+class InviteRequest(BaseModel):
+    """Payload to invite a new team member."""
+
+    phone: str = Field(min_length=10, max_length=20)
+    role_id: int
+
+
+class InviteOut(BaseModel):
+    """Public representation of a member invite."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    phone_number: str
+    status: str
+    expires_at: datetime
+    role: RoleOut
+
+
+class ActivateRequest(BaseModel):
+    """Payload to activate an invite with OTP + password."""
+
+    phone: str = Field(min_length=10, max_length=20)
+    code: str = Field(pattern=r"^\d{6}$")
+    password: str = Field(min_length=8, max_length=128)
+    display_name: str | None = Field(default=None, max_length=100)

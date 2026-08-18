@@ -7,8 +7,9 @@ from uuid import uuid4
 from sqlalchemy import exists, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import OtpCode, RefreshToken, User
-from app.auth.schemas import TokenResponse
+from app.auth.models import OtpCode, RefreshToken, User, MemberInvite, Role
+from app.auth.schemas import TokenResponse, ActivateRequest, InviteRequest
+from app.auth.permissions import ACTION_CATALOG, owner_only_actions, validate_actions
 from app.auth.security import (
     create_access_token,
     generate_otp_code,
@@ -28,6 +29,7 @@ from app.core.exceptions import (
     NotFoundError,
     RateLimitError,
 )
+
 
 MAX_OTP_ATTEMPTS = 5
 MAX_LOGIN_ATTEMPTS = 5
@@ -333,3 +335,112 @@ async def confirm_reset(
         update(RefreshToken).where(RefreshToken.user_id == user.id).values(revoked_at=_now())
     )
     await log_audit(db, "password.changed", user_id=user.id, ip_address=ip_address)
+
+
+async def _get_owner(db: AsyncSession, user: User) -> User:
+    """Return the team owner (self if owner, else the owner_user)."""
+    if user.owner_user_id is None:
+        return user
+    result = await db.execute(select(User).where(User.id == user.owner_user_id))
+    return result.scalar_one()
+
+
+async def invite_member(
+    db: AsyncSession, owner: User, payload: InviteRequest, ip_address: str | None
+) -> MemberInvite:
+    """Create a pending invite and send an OTP with purpose=invite."""
+    result = await db.execute(select(Role).where(Role.id == payload.role_id))
+    role = result.scalar_one_or_none()
+    if role is None:
+        raise NotFoundError("نقش یافت نشد.")
+    if role.team_owner_id != owner.id:
+        raise NotFoundError("نقش یافت نشد.")
+
+    phone = _normalize(payload.phone)
+    await _enforce_otp_rate_limit(db, phone)
+    await _enforce_ip_rate_limit(db, ip_address)
+
+    already = await db.execute(
+        select(exists().where(User.phone_number == phone, User.is_verified.is_(True)))
+    )
+    if already.scalar_one():
+        raise ConflictError("این شماره قبلاً حساب دارد.")
+
+    pending = await db.execute(
+        select(MemberInvite).where(
+            MemberInvite.phone_number == phone,
+            MemberInvite.status == "pending",
+        )
+    )
+    if pending.scalar_one_or_none() is not None:
+        raise ConflictError("برای این شماره دعوت فعال وجود دارد.")
+
+    code = generate_otp_code()
+    await _invalidate_previous_otps(db, phone, "invite")
+    db.add(
+        OtpCode(
+            phone_number=phone,
+            purpose="invite",
+            code_hash=hash_otp_code(code),
+            expires_at=_now() + timedelta(minutes=get_settings().otp_ttl_minutes),
+            ip_address=ip_address,
+        )
+    )
+    invite = MemberInvite(
+        owner_id=owner.id,
+        phone_number=phone,
+        role_id=role.id,
+        status="pending",
+        expires_at=_now() + timedelta(hours=48),
+    )
+    db.add(invite)
+    get_sms_sender().send(phone, f"کد دعوت تیم شما: {code}")
+    await log_audit(
+        db, "member.invited", user_id=owner.id, resource_type="invite",
+        ip_address=ip_address,
+    )
+    await db.flush() 
+    invite.role = role
+    return invite
+
+async def activate_invite(
+    db: AsyncSession,
+    raw_phone: str,
+    code: str,
+    password: str,
+    display_name: str | None,
+    device_info: str | None,
+    ip_address: str | None,
+) -> TokenResponse:
+    """Verify invite OTP, create the member user, and issue tokens."""
+    phone = _normalize(raw_phone)
+    await _consume_otp(db, phone, "invite", code)
+
+    result = await db.execute(
+        select(MemberInvite).where(
+            MemberInvite.phone_number == phone,
+            MemberInvite.status == "pending",
+            MemberInvite.expires_at > _now(),
+        )
+    )
+    invite = result.scalar_one_or_none()
+    if invite is None:
+        raise NotFoundError("دعوت معتبر یافت نشد.")
+
+    user = User(
+        phone_number=phone,
+        password_hash=hash_password(password),
+        display_name=display_name,
+        is_verified=True,
+        owner_user_id=invite.owner_id,
+        role_id=invite.role_id,
+    )
+    db.add(user)
+    invite.status = "used"
+    await db.flush()
+    await log_audit(
+        db, "member.activated", user_id=user.id,
+        resource_type="invite", resource_id=str(invite.id),
+        ip_address=ip_address, user_agent=device_info,
+    )
+    return _issue_tokens(db, user, device_info)

@@ -5,8 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
 from app.auth.dependencies import get_current_user
-from app.auth.models import User
+from app.auth.permissions import owner_only_actions, validate_actions
+from app.auth.models import User, Role
 from app.auth.schemas import (
+    ActivateRequest,
+    InviteOut,
+    InviteRequest,
     LoginRequest,
     MessageResponse,
     OtpResponse,
@@ -15,11 +19,14 @@ from app.auth.schemas import (
     RegisterVerifyRequest,
     ResetConfirmRequest,
     ResetRequest,
+    RoleCreate,
+    RoleOut,
     TokenResponse,
     UserOut,
 )
 from app.core.config import get_settings
 from app.core.database import get_db
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
@@ -116,4 +123,68 @@ async def me(user: User = Depends(get_current_user)) -> UserOut:
         phone_number=user.phone_number,
         display_name=user.display_name,
         is_verified=user.is_verified,
+    )
+
+
+@router.get("/roles", response_model=list[RoleOut])
+async def list_roles(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> list[RoleOut]:
+    """List all roles owned by the current user's team."""
+    owner = await service._get_owner(db, user)
+    result = await db.execute(select(Role).where(Role.team_owner_id == owner.id))
+    return [RoleOut.model_validate(r) for r in result.scalars().all()]
+
+
+@router.post("/roles", response_model=RoleOut, status_code=201)
+async def create_role(
+    payload: RoleCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> RoleOut:
+    """Create a new role (owner-only action)."""
+    if user.owner_user_id is not None:
+        raise AuthenticationError("فقط مالک می‌تواند نقش بسازد.")
+    try:
+        validate_actions(payload.actions)
+    except ValueError as exc:
+        raise InvalidInputError(str(exc)) from exc
+    forbidden = set(payload.actions) & owner_only_actions()
+    if forbidden:
+        raise InvalidInputError(f"این اکشن‌ها قابل تفویض نیستند: {forbidden}")
+    role = Role(
+        team_owner_id=user.id,
+        name=payload.name,
+        actions=payload.actions,
+        scope=payload.scope,
+    )
+    db.add(role)
+    await db.flush()
+    return RoleOut.model_validate(role)
+
+
+@router.post("/members/invite", response_model=InviteOut, status_code=201)
+async def invite_member(
+    payload: InviteRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> InviteOut:
+    """Invite a new team member (owner-only action)."""
+    if user.owner_user_id is not None:
+        raise AuthenticationError("فقط مالک می‌تواند دعوت کند.")
+    owner = await service._get_owner(db, user)
+    invite = await service.invite_member(db, owner, payload, ip_address=_ip(request))
+    await db.refresh(invite)
+    return InviteOut.model_validate(invite)
+
+
+@router.post("/members/activate", response_model=TokenResponse)
+async def activate_member(
+    payload: ActivateRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Activate an invite with OTP and set a password."""
+    return await service.activate_invite(
+        db, payload.phone, payload.code, payload.password,
+        payload.display_name, _device(request), ip_address=_ip(request),
     )

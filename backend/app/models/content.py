@@ -16,12 +16,17 @@ class ContentJob(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     description: Mapped[str] = mapped_column(String(500))
-    platform_id: Mapped[int] = mapped_column(ForeignKey("platforms.id", ondelete="RESTRICT"), index=True)
+    platform_id: Mapped[int] = mapped_column(ForeignKey(
+        "platforms.id", ondelete="RESTRICT"), index=True)
     platform: Mapped[Platform] = relationship()
-    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default="queued", index=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     client_idempotency_key: Mapped[str | None] = mapped_column(
         String(36), unique=True, nullable=True, index=True
+    )
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
