@@ -1,0 +1,32 @@
+[project]
+name = "social-publish-backend"
+version = "0.1.0"
+description = "Backend API for the social publishing platform"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.35.0",
+    "sqlalchemy[asyncio]>=2.0.51",
+    "asyncpg>=0.31.0",
+    "pydantic-settings>=2.10.0",
+    "alembic>=1.16.0",
+    "argon2-cffi>=23.1.0",
+    "PyJWT>=2.10.0",
+    "phonenumbers>=9.0.0",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.16.0", "pytest>=8.4.0", "pytest-asyncio>=1.0.0", "httpx>=0.28.0"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "N", "UP", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["D104"]

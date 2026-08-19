@@ -1,0 +1,77 @@
+"""Application entry point: creates the FastAPI app and manages its lifespan."""
+
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.api.v1.content import router as content_router
+from app.auth.router import router as auth_router
+from app.core.config import get_settings
+from app.core.exceptions import (
+    AuthenticationError,
+    ConflictError,
+    InvalidInputError,
+    NotFoundError,
+    RateLimitError,
+)
+
+settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Schema is managed by Alembic (run `alembic upgrade head`)."""
+    yield
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.exception_handler(InvalidInputError)
+async def handle_invalid_input(request: Request, exc: InvalidInputError) -> JSONResponse:
+    """Map invalid-input domain errors to HTTP 400."""
+    return JSONResponse(status_code=400, content={"message": str(exc), "code": exc.code})
+
+
+@app.exception_handler(AuthenticationError)
+async def handle_authentication(request: Request, exc: AuthenticationError) -> JSONResponse:
+    """Map authentication domain errors to HTTP 401."""
+    return JSONResponse(status_code=401, content={"message": str(exc), "code": exc.code})
+
+    
+@app.exception_handler(NotFoundError)
+async def handle_not_found(request: Request, exc: NotFoundError) -> JSONResponse:
+    """Map not-found domain errors to HTTP 404."""
+    return JSONResponse(status_code=404, content={"message": str(exc), "code": exc.code})
+
+
+@app.exception_handler(ConflictError)
+async def handle_conflict(request: Request, exc: ConflictError) -> JSONResponse:
+    """Map conflict domain errors to HTTP 409."""
+    return JSONResponse(status_code=409, content={"message": str(exc), "code": exc.code})
+
+
+@app.exception_handler(RateLimitError)
+async def handle_rate_limit(request: Request, exc: RateLimitError) -> JSONResponse:
+    """Map rate-limit domain errors to HTTP 429."""
+    return JSONResponse(status_code=429, content={"message": str(exc), "code": exc.code})
+
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(content_router, prefix="/api/v1")
+
+
+@app.get("/healthz", tags=["meta"])
+async def healthcheck() -> dict[str, str]:
+    """Liveness probe for orchestrators and uptime monitors."""
+    return {"status": "ok"}
