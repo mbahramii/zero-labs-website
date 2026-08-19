@@ -69,7 +69,7 @@ class MessageResponse(BaseModel):
     
     
 class UserOut(BaseModel):
-    """Public profile of the authenticated user."""
+    """Public profile of the authenticated user with permissions."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -77,7 +77,9 @@ class UserOut(BaseModel):
     phone_number: str
     display_name: str | None
     is_verified: bool
-
+    is_owner: bool
+    actions: list[str]
+    scope: list[dict]
 
 class RoleCreate(BaseModel):
     """Payload to create a new role."""

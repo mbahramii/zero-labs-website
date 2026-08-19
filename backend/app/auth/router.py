@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import TeamContext, get_current_team, require , get_current_user
 from app.auth.permissions import owner_only_actions, validate_actions
 from app.auth.models import User, Role
 from app.auth.schemas import (
@@ -116,13 +116,16 @@ async def password_reset_confirm(
 
 
 @router.get("/me", response_model=UserOut)
-async def me(user: User = Depends(get_current_user)) -> UserOut:
-    """Return the authenticated user's profile."""
+async def me(team: TeamContext = Depends(get_current_team)) -> UserOut:
+    """Return the authenticated user's profile and permissions."""
     return UserOut(
-        id=user.id,
-        phone_number=user.phone_number,
-        display_name=user.display_name,
-        is_verified=user.is_verified,
+        id=team.current_user.id,
+        phone_number=team.current_user.phone_number,
+        display_name=team.current_user.display_name,
+        is_verified=team.current_user.is_verified,
+        is_owner=(team.role is None),
+        actions=list(team.actions),
+        scope=team.scope,
     )
 
 

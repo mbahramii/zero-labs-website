@@ -16,6 +16,7 @@ from app.core.exceptions import (
     InvalidInputError,
     NotFoundError,
     RateLimitError,
+    AuthorizationError,
 )
 
 settings = get_settings()
@@ -66,6 +67,12 @@ async def handle_conflict(request: Request, exc: ConflictError) -> JSONResponse:
 async def handle_rate_limit(request: Request, exc: RateLimitError) -> JSONResponse:
     """Map rate-limit domain errors to HTTP 429."""
     return JSONResponse(status_code=429, content={"message": str(exc), "code": exc.code})
+
+
+@app.exception_handler(AuthorizationError)
+async def handle_forbidden(request: Request, exc: AuthorizationError) -> JSONResponse:
+    """Map authorization domain errors to HTTP 403."""
+    return JSONResponse(status_code=403, content={"message": str(exc), "code": exc.code})
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(content_router, prefix="/api/v1")

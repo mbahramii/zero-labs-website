@@ -35,3 +35,9 @@ class RateLimitError(DomainError):
     """Too many requests within a time window (HTTP 429)."""
 
     code = "RATE_LIMITED"
+
+
+class AuthorizationError(DomainError):
+    """User lacks permission for the requested action (HTTP 403)."""
+
+    code = "FORBIDDEN"
