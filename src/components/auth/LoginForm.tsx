@@ -1,100 +1,100 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { Lock, User } from "lucide-react";
+import { useState } from "react";
+import { Lock, Mail } from "lucide-react";
 import Link from "next/link";
-import FormField from "./FormField";
-import AuthSubmitButton from "./AuthSubmitButton";
-import { loginUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { loginSchema, type LoginFormData } from "@/lib/schemas";
+import { loginUser } from "@/lib/auth";
+import { useAuth } from "@/components/context/AuthContext";
+import FormField from "@/components/auth/FormField";
 
 export default function LoginForm() {
+  const { login } = useAuth();
   const router = useRouter();
-
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      emailOrPhone: "",
+      password: "",
+      remember: false,
+    },
+  });
+
+  async function onSubmit(data: LoginFormData) {
     setError(null);
 
-    const formData = new FormData(event.currentTarget);
-    const username = String(formData.get("username") ?? "").trim();
-    const password = String(formData.get("password") ?? "");
-    const remember = formData.get("remember") === "on";
-
-    if (!username || !password) {
-      setError("لطفاً همه فیلدها را تکمیل کنید.");
-      return;
-    }
-
-    if (password.length < 8) {
-      setError("رمز عبور حداقل ۸ کاراکتر باشد.");
-      return;
-    }
-
-    setIsLoading(true);
-
     try {
-  // const data = await loginUser({
-  //   username,
-  //   password,
-  //   remember,
-  // });
+      const response = await loginUser({
+        emailOrPhone: data.emailOrPhone,
+        password: data.password,
+        remember: data.remember ?? false,
+      });
 
-  const data = {
-  token: "mock-jwt-token",
-};
-  // Store the authenticated user locally until the backend is connected.
-  localStorage.setItem(
-    "auth",
-    JSON.stringify({
-      token: data.token,
-      user: {
-        username,
-      },
-    })
-  );
-
-  // Redirect the user after a successful login.
-  router.push("/");
-} catch (err) {
-  setError(err instanceof Error ? err.message : "ورود ناموفق بود.");
-}
+      // Save user session
+      login({ email: data.emailOrPhone }, response.token);
+      router.push("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed. Please try again.");
+    }
   }
 
   return (
-    <form className="mt-2" onSubmit={handleSubmit}>
+    <form className="mt-2" onSubmit={handleSubmit(onSubmit)}>
       <FormField
-        label="نام کاربری"
-        name="username"
-        placeholder="نام کاربری خود را وارد کنید"
-        icon={User}
-        autoComplete="username"
+        label="Email or Phone Number"
+        icon={Mail}
+        placeholder="example@email.com or 09123456789"
+        autoComplete="email"
+        error={errors.emailOrPhone?.message}
+        {...register("emailOrPhone")}
       />
 
       <FormField
-        label="رمز عبور"
-        name="password"
+        label="Password"
         type="password"
-        placeholder="رمز عبور خود را وارد کنید"
         icon={Lock}
+        placeholder="Enter your password"
         autoComplete="current-password"
+        error={errors.password?.message}
+        {...register("password")}
       />
 
       <div className="mb-6 flex items-center justify-between text-xs">
-        <label className="flex items-center gap-1.5 text-text-secondary">
-          <input type="checkbox" name="remember" className="h-4 w-4 rounded border-border accent-accent" />
-          مرا به خاطر بسپار
+        <label className="flex items-center gap-1.5 text-text-secondary cursor-pointer">
+          <input
+            type="checkbox"
+            {...register("remember")}
+            className="h-4 w-4 rounded border-border accent-accent"
+          />
+          Remember me
         </label>
-        <Link href="/forgot-password" className="text-accent-light hover:text-accent">
-          رمز عبور را فراموش کرده‌اید؟
+        <Link href="/forgot-password" className="text-accent hover:text-accent/80 transition-colors">
+          Forgot password?
         </Link>
       </div>
 
-      {error && <p className="mb-4 text-center text-xs text-red-400">{error}</p>}
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-500/10 p-3 text-center text-sm text-red-400">
+          {error}
+        </div>
+      )}
 
-      <AuthSubmitButton label="ورود به حساب" isLoading={isLoading} />
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="w-full rounded-xl bg-accent py-3.5 text-sm font-bold text-white shadow-[0_10px_30px_-10px_rgba(47,111,235,0.7)] transition-all hover:scale-[1.02] hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-70"
+      >
+        {isSubmitting ? "Signing in..." : "Sign In"}
+      </button>
     </form>
   );
 }

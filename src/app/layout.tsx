@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Vazirmatn } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/components/context/AuthContext";
 
 // Vazirmatn: a Persian-optimized geometric sans, the closest match to an
 // Apple-style system font while covering Farsi glyphs properly.
@@ -25,7 +26,11 @@ export default function RootLayout({
     // dir="rtl" + lang="fa" are required at the html level for correct
     // text direction, form controls, and native scrollbar placement.
     <html lang="fa" dir="rtl" className={vazirmatn.variable}>
-      <body className="bg-bg font-sans antialiased">{children}</body>
+      <body className="bg-bg font-sans antialiased">
+        <AuthProvider>
+        {children}
+        </AuthProvider>
+        </body>
     </html>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, Sparkles, X } from "lucide-react";
+import { Menu, Sparkles, X, LogOut } from "lucide-react";
+import { useAuth } from "@/components/context/AuthContext";
 
 const NAV_LINKS = [
-  { label: "خانه", href: "#" },
+  { label: "خانه", href: "/" },
   { label: "امکانات", href: "#features" },
   { label: "نمونه‌ها", href: "#showcase" },
   { label: "قیمت‌گذاری", href: "#pricing" },
@@ -13,16 +14,15 @@ const NAV_LINKS = [
 ];
 
 export default function Navbar() {
-  // Controls the mobile dropdown menu only; desktop nav is always visible.
+  const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Authentication state (temporary until backend integration).
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
   useEffect(() => {
-    // Check if an authenticated session exists.
-    const auth = localStorage.getItem("auth");
-    setIsLoggedIn(!!auth);
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsMenuOpen(false);
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
   }, []);
 
   return (
@@ -40,9 +40,7 @@ export default function Navbar() {
         <ul className="hidden items-center gap-8 md:flex">
           {NAV_LINKS.map((link) => (
             <li key={link.label}>
-              <a
-                href={link.href}
-                className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary">
+              <a href={link.href} className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary">
                 {link.label}
               </a>
             </li>
@@ -51,31 +49,31 @@ export default function Navbar() {
 
         {/* Desktop actions */}
         <div className="hidden items-center gap-3 md:flex">
-  {isLoggedIn ? (
-    <Link
-      href="/dashboard"
-      className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(47,111,235,0.7)] transition-transform hover:scale-[1.03]"
-    >
-      داشبورد
-    </Link>
-  ) : (
-    <>
-      <Link
-        href="/login"
-        className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
-      >
-        ورود
-      </Link>
+          {user ? (
+            <>
+              <Link href="/dashboard" className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary">
+                داشبورد
+              </Link>
+              <button
+                onClick={logout}
+                className="flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:border-red-500 hover:text-red-500"
+              >
+                <LogOut className="h-4 w-4" />
+                خروج
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary">
+                ورود
+              </Link>
+              <Link href="/register" className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(47,111,235,0.7)] transition-transform hover:scale-[1.03]">
+                شروع رایگان
+              </Link>
+            </>
+          )}
+        </div>
 
-      <Link
-        href="/register"
-        className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(47,111,235,0.7)] transition-transform hover:scale-[1.03]"
-      >
-        شروع رایگان
-      </Link>
-    </>
-  )}
-</div>
         {/* Mobile menu toggle */}
         <button
           type="button"
@@ -93,45 +91,30 @@ export default function Navbar() {
           <ul className="flex flex-col gap-4">
             {NAV_LINKS.map((link) => (
               <li key={link.label}>
-                <a
-                  href={link.href}
-                  className="text-sm font-medium text-text-secondary hover:text-text-primary"
-                  onClick={() => setIsMenuOpen(false)}
-                >
+                <a href={link.href} className="text-sm font-medium text-text-secondary hover:text-text-primary" onClick={() => setIsMenuOpen(false)}>
                   {link.label}
                 </a>
               </li>
             ))}
           </ul>
           <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
-  {isLoggedIn ? (
-    <Link
-      href="/dashboard"
-      className="rounded-full bg-accent px-5 py-2.5 text-center text-sm font-semibold text-white"
-      onClick={() => setIsMenuOpen(false)}
-    >
-      داشبورد
-    </Link>
-  ) : (
-    <>
-      <Link
-        href="/login"
-        className="text-sm font-medium text-text-secondary"
-        onClick={() => setIsMenuOpen(false)}
-      >
-        ورود
-      </Link>
-
-      <Link
-        href="/register"
-        className="rounded-full bg-accent px-5 py-2.5 text-center text-sm font-semibold text-white"
-        onClick={() => setIsMenuOpen(false)}
-      >
-        شروع رایگان
-      </Link>
-    </>
-  )}
-</div>
+            {user ? (
+              <>
+                <Link href="/dashboard" className="rounded-full bg-accent px-5 py-2.5 text-center text-sm font-semibold text-white" onClick={() => setIsMenuOpen(false)}>
+                  داشبورد
+                </Link>
+                <button onClick={() => { logout(); setIsMenuOpen(false); }} className="flex items-center justify-center gap-1.5 rounded-full border border-border px-5 py-2.5 text-center text-sm font-medium text-text-secondary hover:border-red-500 hover:text-red-500">
+                  <LogOut className="h-4 w-4" />
+                  خروج از حساب
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="text-sm font-medium text-text-secondary" onClick={() => setIsMenuOpen(false)}>ورود</Link>
+                <Link href="/register" className="rounded-full bg-accent px-5 py-2.5 text-center text-sm font-semibold text-white" onClick={() => setIsMenuOpen(false)}>شروع رایگان</Link>
+              </>
+            )}
+          </div>
         </div>
       )}
     </header>
