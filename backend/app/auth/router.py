@@ -23,6 +23,8 @@ from app.auth.schemas import (
     RoleOut,
     TokenResponse,
     UserOut,
+    MemberOut,
+    MemberUpdate,
 )
 from app.core.config import get_settings
 from app.core.database import get_db
@@ -191,3 +193,35 @@ async def activate_member(
         db, payload.phone, payload.code, payload.password,
         payload.display_name, _device(request), ip_address=_ip(request),
     )
+    
+    
+@router.get("/members", response_model=list[MemberOut])
+async def list_members_endpoint(
+    team: TeamContext = Depends(require("members:manage")),
+    db: AsyncSession = Depends(get_db),
+) -> list[MemberOut]:
+    """List all team members (owner-only)."""
+    members = await service.list_members(db, team.owner)
+    return [MemberOut.model_validate(m) for m in members]
+
+
+@router.patch("/members/{member_id}", response_model=MemberOut)
+async def update_member_endpoint(
+    member_id: int,
+    payload: MemberUpdate,
+    team: TeamContext = Depends(require("members:manage")),
+    db: AsyncSession = Depends(get_db),
+) -> MemberOut:
+    """Update a member's role or active status (owner-only)."""
+    member = await service.update_member(db, team.owner, member_id, payload)
+    return MemberOut.model_validate(member)
+
+
+@router.delete("/members/{member_id}", status_code=204)
+async def delete_member_endpoint(
+    member_id: int,
+    team: TeamContext = Depends(require("members:manage")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete a member and revoke all sessions (owner-only)."""
+    await service.delete_member(db, team.owner, member_id)

@@ -22,6 +22,11 @@ class ContentRequest(BaseModel):
     # DB (platforms table) is the source of truth; validated in the endpoint.
     platform_code: str = Field(pattern=r"^[a-z0-9_-]{2,50}$")
     tone: str = "casual"
+    idempotency_key: str | None = Field(
+        default=None,
+        max_length=36,
+        description="Client-provided key to ensure idempotency of content job creation.",
+    )
 
 
 class ContentResponse(BaseModel):

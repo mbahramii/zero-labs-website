@@ -5,10 +5,11 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from sqlalchemy import exists, func, select, update
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import OtpCode, RefreshToken, User, MemberInvite, Role
-from app.auth.schemas import TokenResponse, ActivateRequest, InviteRequest
+from app.auth.schemas import TokenResponse, ActivateRequest, InviteRequest , MemberUpdate
 from app.auth.permissions import ACTION_CATALOG, owner_only_actions, validate_actions
 from app.auth.security import (
     create_access_token,
@@ -403,6 +404,7 @@ async def invite_member(
     invite.role = role
     return invite
 
+
 async def activate_invite(
     db: AsyncSession,
     raw_phone: str,
@@ -444,3 +446,64 @@ async def activate_invite(
         ip_address=ip_address, user_agent=device_info,
     )
     return _issue_tokens(db, user, device_info)
+
+
+async def list_members(db: AsyncSession, owner: User) -> list[User]:
+    """List all members of the team with roles eager-loaded."""
+    result = await db.execute(
+        select(User)
+        .where(User.owner_user_id == owner.id)
+        .options(selectinload(User.role))
+        .order_by(User.id)
+    )
+    return list(result.scalars().all())
+
+
+async def update_member(
+    db: AsyncSession, owner: User, member_id: int, payload: MemberUpdate
+) -> User:
+    """Update a member's role or active status; deactivation kills sessions."""
+    result = await db.execute(
+        select(User).where(User.id == member_id, User.owner_user_id == owner.id)
+        .options(selectinload(User.role))
+    )
+    member = result.scalar_one_or_none()
+    if member is None:
+        raise NotFoundError("عضو یافت نشد.")
+    if payload.role_id is not None:
+        role_result = await db.execute(
+            select(Role).where(Role.id == payload.role_id, Role.team_owner_id == owner.id)
+        )
+        role = role_result.scalar_one_or_none()
+        if role is None:
+            raise NotFoundError("نقش یافت نشد.")
+        member.role_id = role.id
+    if payload.is_active is not None:
+        if not payload.is_active:
+            await db.execute(
+                update(RefreshToken)
+                .where(RefreshToken.user_id == member.id)
+                .values(revoked_at=_now())
+            )
+        member.is_active = payload.is_active
+    return member
+
+
+async def delete_member(db: AsyncSession, owner: User, member_id: int) -> None:
+    """Delete a member and revoke all sessions."""
+    result = await db.execute(
+        select(User).where(User.id == member_id, User.owner_user_id == owner.id)
+    )
+    member = result.scalar_one_or_none()
+    if member is None:
+        raise NotFoundError("عضو یافت نشد.")
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == member.id)
+        .values(revoked_at=_now())
+    )
+    await log_audit(
+        db, "member.deleted", user_id=owner.id,
+        resource_type="member", resource_id=str(member_id),
+    )
+    await db.delete(member)
