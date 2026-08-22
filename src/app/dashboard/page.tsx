@@ -1,47 +1,63 @@
-import { LayoutDashboard, Sparkles, FileText, Calendar, TrendingUp } from "lucide-react";
+"use client";
+
+import { FileText, Calendar, TrendingUp, Sparkles } from "lucide-react";
 import Link from "next/link";
+
+// Import dashboard components
+import ContentStats from "@/components/dashboard/ContentStats";
+import AccountsSection from "@/components/dashboard/AccountsSection";
 
 export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-bg px-6 py-10">
       <div className="mx-auto max-w-7xl">
-        {/* Header */}
+        {/* Page Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-text-primary">پنل کاربری</h1>
           <p className="mt-2 text-sm text-text-secondary">
-            خوش آمدید! در یک نگاه وضعیت حساب خود را ببینید.
+            خوش آمدید! وضعیت حساب و فعالیت‌های خود را در یک نگاه بررسی کنید.
           </p>
         </div>
 
-        {/* Stats cards */}
+        {/* Summary Stats Cards */}
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             icon={FileText}
             label="محتواهای تولید شده"
-            value="0"
+            value="۱۵"
             color="accent"
           />
           <StatCard
             icon={Calendar}
             label="منتشر شده"
-            value="0"
+            value="۴۲"
             color="green"
           />
           <StatCard
             icon={TrendingUp}
             label="در انتظار انتشار"
-            value="0"
+            value="۱۴"
             color="yellow"
           />
           <StatCard
             icon={Sparkles}
             label="اعتبار باقی‌مانده"
-            value="10"
+            value="۰"
             color="purple"
           />
         </div>
 
-        {/* Quick action */}
+        {/* Detailed Content Statistics Section */}
+        <div className="mb-8">
+          <ContentStats />
+        </div>
+
+        {/* Account & Phone Number Management Section */}
+        <div className="mb-8">
+          <AccountsSection />
+        </div>
+
+        {/* Quick Action Card */}
         <div className="rounded-2xl border border-border bg-surface-soft p-8 text-center">
           <Sparkles className="mx-auto mb-4 h-12 w-12 text-accent" />
           <h2 className="mb-2 text-xl font-bold text-text-primary">
@@ -63,6 +79,7 @@ export default function DashboardPage() {
   );
 }
 
+// Helper component for summary stat cards
 type StatCardProps = {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
