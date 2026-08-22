@@ -14,6 +14,7 @@ from app.core import audit  # noqa: F401
 
 from app.models import content, platform  # noqa: F401
 from app.auth import models as auth_models  # noqa: F401
+from app.channels import models as channel_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

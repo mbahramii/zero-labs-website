@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import OtpCode, RefreshToken, User, MemberInvite, Role
-from app.auth.schemas import TokenResponse, ActivateRequest, InviteRequest , MemberUpdate
+from app.auth.schemas import TokenResponse, ActivateRequest, InviteRequest , MemberUpdate , RoleUpdate
 from app.auth.permissions import ACTION_CATALOG, owner_only_actions, validate_actions
 from app.auth.security import (
     create_access_token,
@@ -507,3 +507,30 @@ async def delete_member(db: AsyncSession, owner: User, member_id: int) -> None:
         resource_type="member", resource_id=str(member_id),
     )
     await db.delete(member)
+    
+
+async def update_role(
+    db: AsyncSession, owner: User, role_id: int, payload: RoleUpdate
+) -> Role:
+    """Update a team role (owner-only)."""
+    result = await db.execute(
+        select(Role).where(Role.id == role_id, Role.team_owner_id == owner.id)
+    )
+    role = result.scalar_one_or_none()
+    if role is None:
+        raise NotFoundError("نقش یافت نشد.")
+    if payload.name is not None:
+        role.name = payload.name
+    if payload.actions is not None:
+        from app.auth.permissions import validate_actions, owner_only_actions
+        try:
+            validate_actions(payload.actions)
+        except ValueError as exc:
+            raise InvalidInputError(str(exc)) from exc
+        forbidden = set(payload.actions) & owner_only_actions()
+        if forbidden:
+            raise InvalidInputError(f"این اکشن‌ها قابل تفویض نیستند: {forbidden}")
+        role.actions = payload.actions
+    if payload.scope is not None:
+        role.scope = payload.scope
+    return role

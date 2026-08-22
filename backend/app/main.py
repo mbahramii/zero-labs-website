@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from app.api.v1.content import router as content_router
 from app.auth.router import router as auth_router
 from app.core.config import get_settings
+from app.channels.router import router as channels_router
 from app.core.exceptions import (
     AuthenticationError,
     ConflictError,
@@ -76,6 +77,7 @@ async def handle_forbidden(request: Request, exc: AuthorizationError) -> JSONRes
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(content_router, prefix="/api/v1")
+app.include_router(channels_router, prefix="/api/v1")
 
 
 @app.get("/healthz", tags=["meta"])

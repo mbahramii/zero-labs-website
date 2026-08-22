@@ -19,18 +19,25 @@ class Settings(BaseSettings):
     debug: bool = False
     database_url: str 
     cors_origins_raw: str = "http://localhost:3000"
-    secret_key: str  # missing => fail-fast; HS256 signing key
+    secret_key: str 
     access_token_ttl_minutes: int = 30
     refresh_token_ttl_days: int = 30
     otp_ttl_minutes: int = 5
     otp_hourly_cap: int = 3
     otp_daily_ip_cap: int = 10
+    fernet_key: str | None = None
 
     @property
     def cors_origins(self) -> list[str]:
         """Split the comma-separated CORS origins string."""
         return [o.strip() for o in self.cors_origins_raw.split(",") if o.strip()]
 
+    @property
+    def encryption_key(self) -> bytes:
+        """Return the Fernet key; fail fast if not configured."""
+        if not self.fernet_key:
+            raise RuntimeError("FERNET_KEY must be set in environment for encryption")
+        return self.fernet_key.encode("utf-8")
 
 @lru_cache
 def get_settings() -> Settings:

@@ -20,11 +20,13 @@ from app.auth.schemas import (
     ResetConfirmRequest,
     ResetRequest,
     RoleCreate,
+    RoleUpdate,
     RoleOut,
     TokenResponse,
     UserOut,
     MemberOut,
     MemberUpdate,
+    
 )
 from app.core.config import get_settings
 from app.core.database import get_db
@@ -163,6 +165,20 @@ async def create_role(
     )
     db.add(role)
     await db.flush()
+    return RoleOut.model_validate(role)
+
+
+@router.patch("/roles/{role_id}", response_model=RoleOut)
+async def update_role_endpoint(
+    role_id: int,
+    payload: RoleUpdate,
+    team: TeamContext = Depends(require("members:manage")),
+    db: AsyncSession = Depends(get_db),
+) -> RoleOut:
+    """Update a team role (owner-only)."""
+    if team.role is not None:
+        raise AuthorizationError("فقط مالک می‌تواند نقش‌ها را ویرایش کند.")
+    role = await service.update_role(db, team.owner, role_id, payload)
     return RoleOut.model_validate(role)
 
 

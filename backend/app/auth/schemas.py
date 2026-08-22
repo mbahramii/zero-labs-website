@@ -81,6 +81,7 @@ class UserOut(BaseModel):
     actions: list[str]
     scope: list[dict]
 
+
 class RoleCreate(BaseModel):
     """Payload to create a new role."""
 
@@ -99,6 +100,14 @@ class RoleOut(BaseModel):
     actions: list[str]
     scope: list[dict]
 
+
+class RoleUpdate(BaseModel):
+    """Payload to update an existing role."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    actions: list[str] | None = None
+    scope: list[dict] | None = None
+    
 
 class InviteRequest(BaseModel):
     """Payload to invite a new team member."""
