@@ -13,19 +13,19 @@ class ContentStatus(StrEnum):
     processing = "processing"
     published = "published"
     failed = "failed"
+    scheduled = "scheduled"
 
 
 class ContentRequest(BaseModel):
     """Payload for creating a new content generation request."""
 
-    description: str = Field(min_length=10, max_length=500)
-    # DB (platforms table) is the source of truth; validated in the endpoint.
     platform_code: str = Field(pattern=r"^[a-z0-9_-]{2,50}$")
-    tone: str = "casual"
+    description: str = Field(min_length=10, max_length=5000)
     idempotency_key: str | None = Field(
-        default=None,
-        max_length=36,
-        description="Client-provided key to ensure idempotency of content job creation.",
+        default=None,max_length=36, description="Client-generated unique key to prevent duplicate job creation."
+    )
+    scheduled_at: datetime | None = Field(
+        default=None, description="Scheduled time for the content job."
     )
 
 
@@ -39,3 +39,4 @@ class ContentResponse(BaseModel):
     platform_code: str 
     idempotency_key: str | None = None
     created_at: datetime
+    scheduled_at: datetime | None = None

@@ -7,10 +7,13 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from arq import create_pool
+from arq.connections import RedisSettings
+
 from app.api.v1.content import router as content_router
 from app.auth.router import router as auth_router
+from app.channels.router import router as channel_router
 from app.core.config import get_settings
-from app.channels.router import router as channels_router
 from app.core.exceptions import (
     AuthenticationError,
     ConflictError,
@@ -26,7 +29,9 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Schema is managed by Alembic (run `alembic upgrade head`)."""
+    app.state.redis = await create_pool(RedisSettings.from_dsn(get_settings().redis_url))
     yield
+    await app.state.redis.close()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
@@ -51,7 +56,12 @@ async def handle_authentication(request: Request, exc: AuthenticationError) -> J
     """Map authentication domain errors to HTTP 401."""
     return JSONResponse(status_code=401, content={"message": str(exc), "code": exc.code})
 
-    
+@app.exception_handler(AuthorizationError)
+async def handle_forbidden(request: Request, exc: AuthorizationError) -> JSONResponse:
+    """Map authorization domain errors to HTTP 403."""
+    return JSONResponse(status_code=403,content={"message": str(exc), "code": exc.code})
+
+
 @app.exception_handler(NotFoundError)
 async def handle_not_found(request: Request, exc: NotFoundError) -> JSONResponse:
     """Map not-found domain errors to HTTP 404."""
@@ -69,15 +79,9 @@ async def handle_rate_limit(request: Request, exc: RateLimitError) -> JSONRespon
     """Map rate-limit domain errors to HTTP 429."""
     return JSONResponse(status_code=429, content={"message": str(exc), "code": exc.code})
 
-
-@app.exception_handler(AuthorizationError)
-async def handle_forbidden(request: Request, exc: AuthorizationError) -> JSONResponse:
-    """Map authorization domain errors to HTTP 403."""
-    return JSONResponse(status_code=403, content={"message": str(exc), "code": exc.code})
-
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(content_router, prefix="/api/v1")
-app.include_router(channels_router, prefix="/api/v1")
+app.include_router(channel_router, prefix="/api/v1")
 
 
 @app.get("/healthz", tags=["meta"])

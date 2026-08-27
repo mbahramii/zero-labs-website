@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     debug: bool = False
     database_url: str 
     cors_origins_raw: str = "http://localhost:3000"
-    secret_key: str 
+    secret_key: str  # missing => fail-fast; HS256 signing key
+    redis_url: str = "redis://127.0.0.1:6379/0"
     access_token_ttl_minutes: int = 30
     refresh_token_ttl_days: int = 30
     otp_ttl_minutes: int = 5
@@ -31,7 +32,7 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         """Split the comma-separated CORS origins string."""
         return [o.strip() for o in self.cors_origins_raw.split(",") if o.strip()]
-
+    
     @property
     def encryption_key(self) -> bytes:
         """Return the Fernet key; fail fast if not configured."""
