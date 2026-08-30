@@ -22,6 +22,9 @@ class User(Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    default_currency: Mapped[str | None] = mapped_column(
+        String(3), nullable=True, default=None
+    )
     locked_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -40,7 +43,6 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
-
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
         back_populates="user", foreign_keys="RefreshToken.user_id"
     )

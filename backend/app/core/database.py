@@ -34,3 +34,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+
+async def get_redis():
+    """Return the Redis connection pool from app.state (if available)."""
+    try:
+        from app.main import app
+        return getattr(app.state, "redis", None)
+    except Exception:
+        return None
