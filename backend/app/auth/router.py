@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import service
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import TeamContext, get_current_team, require , get_current_user
 from app.auth.permissions import owner_only_actions, validate_actions
 from app.auth.models import User, Role
 from app.auth.schemas import (
@@ -20,9 +20,13 @@ from app.auth.schemas import (
     ResetConfirmRequest,
     ResetRequest,
     RoleCreate,
+    RoleUpdate,
     RoleOut,
     TokenResponse,
     UserOut,
+    MemberOut,
+    MemberUpdate,
+    
 )
 from app.core.config import get_settings
 from app.core.database import get_db
@@ -116,13 +120,16 @@ async def password_reset_confirm(
 
 
 @router.get("/me", response_model=UserOut)
-async def me(user: User = Depends(get_current_user)) -> UserOut:
-    """Return the authenticated user's profile."""
+async def me(team: TeamContext = Depends(get_current_team)) -> UserOut:
+    """Return the authenticated user's profile and permissions."""
     return UserOut(
-        id=user.id,
-        phone_number=user.phone_number,
-        display_name=user.display_name,
-        is_verified=user.is_verified,
+        id=team.current_user.id,
+        phone_number=team.current_user.phone_number,
+        display_name=team.current_user.display_name,
+        is_verified=team.current_user.is_verified,
+        is_owner=(team.role is None),
+        actions=list(team.actions),
+        scope=team.scope,
     )
 
 
@@ -161,6 +168,20 @@ async def create_role(
     return RoleOut.model_validate(role)
 
 
+@router.patch("/roles/{role_id}", response_model=RoleOut)
+async def update_role_endpoint(
+    role_id: int,
+    payload: RoleUpdate,
+    team: TeamContext = Depends(require("members:manage")),
+    db: AsyncSession = Depends(get_db),
+) -> RoleOut:
+    """Update a team role (owner-only)."""
+    if team.role is not None:
+        raise AuthorizationError("فقط مالک می‌تواند نقش‌ها را ویرایش کند.")
+    role = await service.update_role(db, team.owner, role_id, payload)
+    return RoleOut.model_validate(role)
+
+
 @router.post("/members/invite", response_model=InviteOut, status_code=201)
 async def invite_member(
     payload: InviteRequest,
@@ -188,3 +209,35 @@ async def activate_member(
         db, payload.phone, payload.code, payload.password,
         payload.display_name, _device(request), ip_address=_ip(request),
     )
+    
+    
+@router.get("/members", response_model=list[MemberOut])
+async def list_members_endpoint(
+    team: TeamContext = Depends(require("members:manage")),
+    db: AsyncSession = Depends(get_db),
+) -> list[MemberOut]:
+    """List all team members (owner-only)."""
+    members = await service.list_members(db, team.owner)
+    return [MemberOut.model_validate(m) for m in members]
+
+
+@router.patch("/members/{member_id}", response_model=MemberOut)
+async def update_member_endpoint(
+    member_id: int,
+    payload: MemberUpdate,
+    team: TeamContext = Depends(require("members:manage")),
+    db: AsyncSession = Depends(get_db),
+) -> MemberOut:
+    """Update a member's role or active status (owner-only)."""
+    member = await service.update_member(db, team.owner, member_id, payload)
+    return MemberOut.model_validate(member)
+
+
+@router.delete("/members/{member_id}", status_code=204)
+async def delete_member_endpoint(
+    member_id: int,
+    team: TeamContext = Depends(require("members:manage")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Delete a member and revoke all sessions (owner-only)."""
+    await service.delete_member(db, team.owner, member_id)

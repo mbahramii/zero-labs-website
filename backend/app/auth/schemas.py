@@ -69,7 +69,7 @@ class MessageResponse(BaseModel):
     
     
 class UserOut(BaseModel):
-    """Public profile of the authenticated user."""
+    """Public profile of the authenticated user with permissions."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -77,6 +77,9 @@ class UserOut(BaseModel):
     phone_number: str
     display_name: str | None
     is_verified: bool
+    is_owner: bool
+    actions: list[str]
+    scope: list[dict]
 
 
 class RoleCreate(BaseModel):
@@ -97,6 +100,14 @@ class RoleOut(BaseModel):
     actions: list[str]
     scope: list[dict]
 
+
+class RoleUpdate(BaseModel):
+    """Payload to update an existing role."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    actions: list[str] | None = None
+    scope: list[dict] | None = None
+    
 
 class InviteRequest(BaseModel):
     """Payload to invite a new team member."""
@@ -124,3 +135,22 @@ class ActivateRequest(BaseModel):
     code: str = Field(pattern=r"^\d{6}$")
     password: str = Field(min_length=8, max_length=128)
     display_name: str | None = Field(default=None, max_length=100)
+    
+    
+class MemberOut(BaseModel):
+    """Public representation of a team member."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    phone_number: str
+    display_name: str | None
+    is_active: bool
+    role: RoleOut | None
+
+
+class MemberUpdate(BaseModel):
+    """Payload to update a team member (change role or deactivate)."""
+
+    role_id: int | None = None
+    is_active: bool | None = None
