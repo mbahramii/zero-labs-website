@@ -7,7 +7,7 @@ import Link from "next/link";
 import FormField from "./FormField";
 import OtpInput from "./OtpInput";
 import AuthSubmitButton from "./AuthSubmitButton";
-import { requestPasswordReset, verifyResetCode, resetPassword } from "@/lib/auth";
+import { requestPasswordReset, confirmPasswordReset } from "@/lib/auth";
 
 type Step = "phone" | "otp" | "reset";
 
@@ -16,12 +16,13 @@ export default function ForgotPasswordForm() {
   const [step, setStep] = useState<Step>("phone");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
 
- // Values carried across steps
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [otpValue, setOtpValue] = useState("");
 
+  // Step 1: send reset OTP
   async function handlePhoneSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -29,23 +30,17 @@ export default function ForgotPasswordForm() {
     const formData = new FormData(event.currentTarget);
     const phoneValue = String(formData.get("phone") ?? "").trim();
 
-    if (!phoneValue) {
-      setError("لطفاً شماره موبایل را وارد کنید.");
+    if (!/^09\d{9}$/.test(phoneValue)) {
+      setError("شماره موبایل معتبر نیست (مثال: 09123456789).");
       return;
     }
 
-    if (!phoneValue.startsWith("09") && !phoneValue.startsWith("07")) {
-      setError("شماره موبایل معتبر نیست.");
-      return;
-    }
-
-  setIsLoading(true);
+    setIsLoading(true);
     try {
-      // TEMP: backend not ready yet — skip the real API call and go
-      // straight to the next step. Restore the line below once
-      // /api/auth/forgot-password is live.
-      // await requestPasswordReset(phoneValue);
+      const response = await requestPasswordReset(phoneValue);
       setPhone(phoneValue);
+      setOtpValue("");
+      setDevOtp(response.dev_otp_code ?? null);
       setStep("otp");
     } catch (err) {
       setError(err instanceof Error ? err.message : "ارسال کد ناموفق بود.");
@@ -54,33 +49,23 @@ export default function ForgotPasswordForm() {
     }
   }
 
+  // Step 2: collect OTP (backend verifies it at the confirm step)
   async function handleOtpSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
-    const formData = new FormData(event.currentTarget);
-    const codeValue = String(formData.get("code") ?? "").trim();
+    const codeValue = otpValue.trim();
 
     if (codeValue.length !== 6) {
       setError("کد تایید باید ۶ رقم باشد.");
       return;
     }
 
-    setIsLoading(true);
-    try {
-      // TEMP: backend not ready yet — skip the real API call and go
-      // straight to the next step. Restore the line below once
-      // /api/auth/verify-reset-code is live.
-      // await verifyResetCode({ phone, code: codeValue });
-      setCode(codeValue);
-      setStep("reset");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "کد وارد شده صحیح نیست.");
-    } finally {
-      setIsLoading(false);
-    }
+    setCode(codeValue);
+    setStep("reset");
   }
 
+  // Step 3: set the new password
   async function handleResetSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -106,7 +91,7 @@ export default function ForgotPasswordForm() {
 
     setIsLoading(true);
     try {
-      await resetPassword({ phone, code, password });
+      await confirmPasswordReset({ phone, code, new_password: password });
       router.push("/login");
     } catch (err) {
       setError(err instanceof Error ? err.message : "تغییر رمز عبور ناموفق بود.");
@@ -115,7 +100,6 @@ export default function ForgotPasswordForm() {
     }
   }
 
-  // Step 1: collect the phone number
   if (step === "phone") {
     return (
       <form className="mt-2" onSubmit={handlePhoneSubmit}>
@@ -146,7 +130,6 @@ export default function ForgotPasswordForm() {
     );
   }
 
-  // Step 2: collect the 6-digit OTP code
   if (step === "otp") {
     return (
       <form className="mt-2" onSubmit={handleOtpSubmit}>
@@ -155,6 +138,12 @@ export default function ForgotPasswordForm() {
         </p>
 
         <OtpInput name="code" value={otpValue} onChange={setOtpValue} />
+
+        {devOtp && (
+          <p className="mb-4 text-center text-xs text-green-400">
+            Dev OTP (DEBUG): <span className="font-mono font-bold">{devOtp}</span>
+          </p>
+        )}
 
         {error && <p className="mb-4 text-center text-xs text-red-400">{error}</p>}
 
@@ -172,7 +161,6 @@ export default function ForgotPasswordForm() {
     );
   }
 
-  // Step 3: set the new password
   return (
     <form className="mt-2" onSubmit={handleResetSubmit}>
       <FormField

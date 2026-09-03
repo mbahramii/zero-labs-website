@@ -47,6 +47,10 @@ export default function Navbar() {
 
   const navLinks = user ? AUTHENTICATED_NAV_LINKS : PUBLIC_NAV_LINKS;
 
+  // Helper: نمایش نام کاربر (ترجیح display_name، وگرنه phone_number)
+  const displayName = user?.display_name ?? user?.phone_number ?? "کاربر";
+  const displayDetail = user?.display_name ? user.phone_number : null;
+
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-bg/80 backdrop-blur-lg">
       <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
@@ -104,7 +108,7 @@ export default function Navbar() {
                     <User className="h-4 w-4" />
                   </span>
                   <span className="text-sm font-medium text-text-primary">
-                    {user.email.split("@")[0]}
+                    {displayName}
                   </span>
                 </button>
 
@@ -112,8 +116,13 @@ export default function Navbar() {
                   <div className="absolute left-0 top-full mt-2 w-48 rounded-xl border border-border bg-bg shadow-xl">
                     <div className="border-b border-border p-3">
                       <p className="truncate text-sm font-medium text-text-primary">
-                        {user.email}
+                        {displayName}
                       </p>
+                      {displayDetail && (
+                        <p className="truncate text-xs text-text-tertiary" dir="ltr">
+                          {displayDetail}
+                        </p>
+                      )}
                     </div>
                     <div className="p-1">
                       <Link
@@ -133,9 +142,9 @@ export default function Navbar() {
                         تنظیمات حساب
                       </Link>
                       <button
-                        onClick={() => {
-                          logout();
+                        onClick={async () => {
                           setIsUserMenuOpen(false);
+                          await logout();
                         }}
                         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-400 transition-colors hover:bg-red-500/10"
                       >
@@ -212,9 +221,9 @@ export default function Navbar() {
                   تولید محتوا
                 </Link>
                 <button
-                  onClick={() => {
-                    logout();
+                  onClick={async () => {
                     setIsMenuOpen(false);
+                    await logout();
                   }}
                   className="flex items-center justify-center gap-1.5 rounded-full border border-border px-5 py-2.5 text-center text-sm font-medium text-red-400 hover:border-red-500"
                 >

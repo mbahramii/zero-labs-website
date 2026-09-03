@@ -1,116 +1,163 @@
-// Thin fetch wrappers for the auth endpoints. 
-// Point AUTH_BASE_URL / the paths below at your real backend once it's ready.
+// Thin fetch wrappers for the real backend auth endpoints.
+// Requests go to the same origin (/api/v1/...) and Next.js rewrites
+// proxy them to the backend (see next.config.ts).
+
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_AUTH === "true";
-const AUTH_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+const API_BASE = "/api/v1";
 
-// Login payload supports either email or phone number
+//  Payload types (match backend schemas) 
+
 export type LoginPayload = {
-  emailOrPhone: string;
-  password: string;
-  remember: boolean;
-};
-
-// Registration payload now only requires email, phone, and password (no name)
-export type RegisterPayload = {
-  email: string;
   phone: string;
   password: string;
 };
 
-export type AuthResponse = {
-  token: string;
-  user: { email: string; phone?: string };
-};
-
-export type RequestResetPayload = {
-  email: string;
-};
-
-export type VerifyResetCodePayload = {
-  email: string;
-  code: string;
-};
-
-export type ResetPasswordPayload = {
-  email: string;
+export type RegisterVerifyPayload = {
+  phone: string;
   code: string;
   password: string;
+  display_name?: string;
 };
 
-export type EmptyResponse = Record<string, never>;
+export type ResetConfirmPayload = {
+  phone: string;
+  code: string;
+  new_password: string;
+};
 
-// Helper function to handle POST requests with JSON payload
-async function postJSON<TPayload, TResponse>(path: string, payload: TPayload): Promise<TResponse> {
-  const response = await fetch(`${AUTH_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+// ---------- Response types (match backend schemas) ----------
+
+export type TokenResponse = {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+};
+
+export type OtpResponse = {
+  message: string;
+  dev_otp_code?: string | null;
+};
+
+export type MessageResponse = {
+  message: string;
+};
+
+export type UserOut = {
+  id: number;
+  phone_number: string;
+  display_name: string | null;
+  is_verified: boolean;
+  is_owner: boolean;
+  actions: string[];
+  scope: Record<string, unknown>[];
+};
+
+// ---------- Helpers ----------
+
+async function request<TResponse>(path: string, options: RequestInit = {}): Promise<TResponse> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers ?? {}),
+    },
   });
 
   if (!response.ok) {
-    const body: { message?: string } | null = await response.json().catch(() => null);
-    throw new Error(body?.message ?? "Request failed. Please try again.");
+    const body = await response.json().catch(() => null);
+    const detail = (body as { detail?: unknown; message?: string } | null)?.detail;
+    const message =
+      (body as { message?: string } | null)?.message ??
+      (typeof detail === "string" ? detail : "Request failed. Please try again.");
+    throw new Error(message);
   }
 
   return response.json();
 }
 
-// ==========================================
-// Authentication functions with Mock support
-// ==========================================
-
-export async function loginUser(payload: LoginPayload): Promise<AuthResponse> {
-  if (USE_MOCK) {
-    await new Promise((resolve) => setTimeout(resolve, 800)); // Simulate network delay
-    
-    if (payload.password !== "12345678") {
-      throw new Error("Invalid password (in mock mode, password must be 12345678).");
-    }
-    
-    return {
-      token: "mock-jwt-token-123",
-      user: { email: payload.emailOrPhone },
-    };
-  }
-  return postJSON<LoginPayload, AuthResponse>("/api/auth/login", payload);
+function postJSON<TPayload, TResponse>(path: string, payload: TPayload): Promise<TResponse> {
+  return request<TResponse>(path, { method: "POST", body: JSON.stringify(payload) });
 }
 
-export async function registerUser(payload: RegisterPayload): Promise<AuthResponse> {
-  if (USE_MOCK) {
-    await new Promise((resolve) => setTimeout(resolve, 800)); // Simulate network delay
-    return {
-      token: "mock-jwt-token-register-456",
-      user: { email: payload.email, phone: payload.phone },
-    };
-  }
-  return postJSON<RegisterPayload, AuthResponse>("/api/auth/register", payload);
+// ---------- Token storage ----------
+
+export function saveTokens(tokens: TokenResponse): void {
+  localStorage.setItem("access_token", tokens.access_token);
+  localStorage.setItem("refresh_token", tokens.refresh_token);
 }
 
-// Password reset functions operate based on email
-export async function requestPasswordReset(email: string): Promise<EmptyResponse> {
-  if (USE_MOCK) {
-    await new Promise((resolve) => setTimeout(resolve, 800)); // Simulate network delay
-    return {};
-  }
-  return postJSON<RequestResetPayload, EmptyResponse>("/api/auth/forgot-password", { email });
+export function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("access_token");
 }
 
-export async function verifyResetCode(payload: VerifyResetCodePayload): Promise<EmptyResponse> {
-  if (USE_MOCK) {
-    await new Promise((resolve) => setTimeout(resolve, 800)); // Simulate network delay
-    
-    if (payload.code !== "1234") {
-      throw new Error("Invalid verification code (in mock mode, code must be 1234).");
-    }
-    return {};
-  }
-  return postJSON<VerifyResetCodePayload, EmptyResponse>("/api/auth/verify-reset-code", payload);
+export function clearTokens(): void {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
 }
 
-export async function resetPassword(payload: ResetPasswordPayload): Promise<EmptyResponse> {
+// ---------- Auth flows ----------
+
+// Registration step 1: send OTP code to the phone number.
+export async function requestRegisterOtp(phone: string): Promise<OtpResponse> {
   if (USE_MOCK) {
-    await new Promise((resolve) => setTimeout(resolve, 800)); // Simulate network delay
-    return {};
+    await new Promise((r) => setTimeout(r, 800));
+    return { message: "OTP sent.", dev_otp_code: "123456" };
   }
-  return postJSON<ResetPasswordPayload, EmptyResponse>("/api/auth/reset-password", payload);
+  return postJSON<{ phone: string }, OtpResponse>("/auth/register/request", { phone });
+}
+
+// Registration step 2: verify OTP and create the account.
+export async function verifyRegister(payload: RegisterVerifyPayload): Promise<TokenResponse> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 800));
+    return { access_token: "mock-jwt", refresh_token: "mock-refresh", token_type: "bearer" };
+  }
+  return postJSON<RegisterVerifyPayload, TokenResponse>("/auth/register/verify", payload);
+}
+
+// Login with phone number and password.
+export async function loginUser(payload: LoginPayload): Promise<TokenResponse> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 800));
+    if (payload.password !== "12345678") throw new Error("Invalid password (mock).");
+    return { access_token: "mock-jwt", refresh_token: "mock-refresh", token_type: "bearer" };
+  }
+  return postJSON<LoginPayload, TokenResponse>("/auth/login", payload);
+}
+
+// Password reset step 1: send OTP code.
+export async function requestPasswordReset(phone: string): Promise<OtpResponse> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 800));
+    return { message: "If the phone is registered, a code was sent.", dev_otp_code: "123456" };
+  }
+  return postJSON<{ phone: string }, OtpResponse>("/auth/password-reset/request", { phone });
+}
+
+// Password reset step 2: set a new password with the OTP code.
+export async function confirmPasswordReset(payload: ResetConfirmPayload): Promise<MessageResponse> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 800));
+    return { message: "Password changed; please log in again." };
+  }
+  return postJSON<ResetConfirmPayload, MessageResponse>("/auth/password-reset/confirm", payload);
+}
+
+// Logout (revokes the refresh token).
+export async function logoutUser(): Promise<MessageResponse> {
+  const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null;
+  const result = await postJSON<{ refresh_token: string }, MessageResponse>("/auth/logout", {
+    refresh_token: refreshToken ?? "",
+  });
+  clearTokens();
+  return result;
+}
+
+// Get the current authenticated user profile.
+export async function getCurrentUser(): Promise<UserOut> {
+  const token = getAccessToken();
+  return request<UserOut>("/auth/me", {
+    headers: { Authorization: `Bearer ${token ?? ""}` },
+  });
 }

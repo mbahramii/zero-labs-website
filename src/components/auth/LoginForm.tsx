@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Lock, Mail } from "lucide-react";
+import { Lock, Phone } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -23,9 +23,8 @@ export default function LoginForm() {
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      emailOrPhone: "",
+      phone: "",
       password: "",
-      remember: false,
     },
   });
 
@@ -34,13 +33,11 @@ export default function LoginForm() {
 
     try {
       const response = await loginUser({
-        emailOrPhone: data.emailOrPhone,
+        phone: data.phone,
         password: data.password,
-        remember: data.remember ?? false,
       });
 
-      // Save user session
-      login({ email: data.emailOrPhone }, response.token);
+      await login(response);
       router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed. Please try again.");
@@ -50,12 +47,13 @@ export default function LoginForm() {
   return (
     <form className="mt-2" onSubmit={handleSubmit(onSubmit)}>
       <FormField
-        label="Email or Phone Number"
-        icon={Mail}
-        placeholder="example@email.com or 09123456789"
-        autoComplete="email"
-        error={errors.emailOrPhone?.message}
-        {...register("emailOrPhone")}
+        label="Phone Number"
+        type="tel"
+        icon={Phone}
+        placeholder="09123456789"
+        autoComplete="tel"
+        error={errors.phone?.message}
+        {...register("phone")}
       />
 
       <FormField
@@ -69,14 +67,7 @@ export default function LoginForm() {
       />
 
       <div className="mb-6 flex items-center justify-between text-xs">
-        <label className="flex items-center gap-1.5 text-text-secondary cursor-pointer">
-          <input
-            type="checkbox"
-            {...register("remember")}
-            className="h-4 w-4 rounded border-border accent-accent"
-          />
-          Remember me
-        </label>
+        <span />
         <Link href="/forgot-password" className="text-accent hover:text-accent/80 transition-colors">
           Forgot password?
         </Link>

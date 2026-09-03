@@ -1,105 +1,160 @@
 "use client";
 
-import { useState } from "react";
-import { Lock, Mail, Phone } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { ArrowRight, Lock, Phone } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { registerSchema, type RegisterFormData } from "@/lib/schemas";
-import { registerUser } from "@/lib/auth";
+import { requestRegisterOtp, verifyRegister } from "@/lib/auth";
 import { useAuth } from "@/components/context/AuthContext";
-import FormField from "@/components/auth/FormField";
+import FormField from "./FormField";
+import OtpInput from "./OtpInput";
+import AuthSubmitButton from "./AuthSubmitButton";
+
+type Step = "request" | "verify";
 
 export default function RegisterForm() {
   const { login } = useAuth();
   const router = useRouter();
+
+  const [step, setStep] = useState<Step>("request");
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      email: "",
-      phone: "",
-      password: "",
-    },
-  });
+  const [phone, setPhone] = useState("");
+  const [otpValue, setOtpValue] = useState("");
 
-  async function onSubmit(data: RegisterFormData) {
+  // Step 1: send OTP to the phone number
+  async function handleRequestSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setError(null);
 
-    try {
-      const response = await registerUser({
-        email: data.email,
-        phone: data.phone,
-        password: data.password,
-      });
+    const formData = new FormData(event.currentTarget);
+    const phoneValue = String(formData.get("phone") ?? "").trim();
 
-      // Auto-login after successful registration
-      login({ email: data.email }, response.token);
-      router.push("/");
+    if (!/^09\d{9}$/.test(phoneValue)) {
+      setError("شماره موبایل معتبر نیست (مثال: 09123456789).");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await requestRegisterOtp(phoneValue);
+      setPhone(phoneValue);
+      setOtpValue("");
+      setDevOtp(response.dev_otp_code ?? null);
+      setStep("verify");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
+      setError(err instanceof Error ? err.message : "ارسال کد ناموفق بود.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
+  // Step 2: verify OTP + set password
+  async function handleVerifySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    const formData = new FormData(event.currentTarget);
+    const password = String(formData.get("password") ?? "");
+
+    if (otpValue.length !== 6) {
+      setError("کد تایید باید ۶ رقم باشد.");
+      return;
+    }
+
+    if (password.length < 8 || !/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
+      setError("رمز عبور باید حداقل ۸ کاراکتر و شامل حرف و عدد باشد.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const tokens = await verifyRegister({
+        phone,
+        code: otpValue,
+        password,
+      });
+
+      await login(tokens);
+      router.push("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تأیید ثبت‌نام ناموفق بود.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  if (step === "request") {
+    return (
+      <form className="mt-2" onSubmit={handleRequestSubmit}>
+        <p className="mb-5 text-center text-sm text-text-secondary">
+          برای ساخت حساب، شماره موبایل خود را وارد کنید.
+        </p>
+
+        <FormField
+          label="شماره موبایل"
+          name="phone"
+          type="tel"
+          placeholder="09xxxxxxxxx"
+          icon={Phone}
+          autoComplete="tel"
+        />
+
+        {error && <p className="mb-4 text-center text-xs text-red-400">{error}</p>}
+
+        <AuthSubmitButton label="ارسال کد تایید" isLoading={isLoading} />
+
+        <p className="mt-6 text-center text-sm text-text-secondary">
+          قبلاً ثبت‌نام کرده‌اید؟{" "}
+          <Link href="/login" className="font-semibold text-accent hover:text-accent/80 transition-colors">
+            ورود
+          </Link>
+        </p>
+      </form>
+    );
+  }
+
   return (
-    <form className="mt-2" onSubmit={handleSubmit(onSubmit)}>
-      <FormField
-        label="Email Address"
-        type="email"
-        icon={Mail}
-        placeholder="example@email.com"
-        autoComplete="email"
-        error={errors.email?.message}
-        {...register("email")}
-      />
+    <form className="mt-2" onSubmit={handleVerifySubmit}>
+      <p className="mb-5 text-center text-sm text-text-secondary">
+        کد ۶ رقمی ارسال شده به شماره <span dir="ltr">{phone}</span> را وارد کنید.
+      </p>
 
-      <FormField
-        label="Phone Number"
-        type="tel"
-        icon={Phone}
-        placeholder="09123456789"
-        autoComplete="tel"
-        maxLength={11}
-        error={errors.phone?.message}
-        {...register("phone")}
-      />
+      <OtpInput name="code" value={otpValue} onChange={setOtpValue} />
 
-      <FormField
-        label="Password"
-        type="password"
-        icon={Lock}
-        placeholder="Create a strong password"
-        autoComplete="new-password"
-        error={errors.password?.message}
-        {...register("password")}
-      />
-
-      {error && (
-        <div className="mb-4 rounded-lg bg-red-500/10 p-3 text-center text-sm text-red-400">
-          {error}
-        </div>
+      {devOtp && (
+        <p className="mb-4 text-center text-xs text-green-400">
+          Dev OTP (DEBUG): <span className="font-mono font-bold">{devOtp}</span>
+        </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full rounded-xl bg-accent py-3.5 text-sm font-bold text-white shadow-[0_10px_30px_-10px_rgba(47,111,235,0.7)] transition-all hover:scale-[1.02] hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-70"
-      >
-        {isSubmitting ? "Creating account..." : "Create Account"}
-      </button>
+      <FormField
+        label="رمز عبور"
+        name="password"
+        type="password"
+        placeholder="حداقل ۸ کاراکتر، شامل حرف و عدد"
+        icon={Lock}
+        autoComplete="new-password"
+      />
 
-      <p className="mt-6 text-center text-sm text-text-secondary">
-        Already have an account?{" "}
-        <Link href="/login" className="font-semibold text-accent hover:text-accent/80 transition-colors">
-          Sign in
-        </Link>
-      </p>
+      {error && <p className="mb-4 text-center text-xs text-red-400">{error}</p>}
+
+      <AuthSubmitButton label="تأیید و ساخت حساب" isLoading={isLoading} />
+
+      <button
+        type="button"
+        onClick={() => {
+          setStep("request");
+          setError(null);
+          setDevOtp(null);
+        }}
+        className="mt-4 flex w-full items-center justify-center gap-1.5 text-sm text-text-tertiary hover:text-text-secondary"
+      >
+        <ArrowRight className="h-4 w-4" />
+        تغییر شماره موبایل
+      </button>
     </form>
   );
 }
