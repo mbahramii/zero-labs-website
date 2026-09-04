@@ -40,3 +40,30 @@ class ContentResponse(BaseModel):
     idempotency_key: str | None = None
     created_at: datetime
     scheduled_at: datetime | None = None
+
+
+class ContentListRequest(BaseModel):
+    """Query parameters for paginated content listing."""
+
+    limit: int = Field(default=20, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
+    status: str | None = Field(default=None, pattern="^(queued|scheduled|processing|published|failed)$")
+    platform_code: str | None = Field(default=None, max_length=50)
+
+
+class ContentListResponse(BaseModel):
+    """Paginated list of content jobs."""
+
+    items: list[ContentResponse]
+    total: int
+    limit: int
+    offset: int
+    has_more: bool
+
+
+class ContentDetailResponse(ContentResponse):
+    """Detailed view of a single content job."""
+
+    description: str
+    error_message: str | None = None
+    updated_at: datetime | None = None

@@ -27,6 +27,7 @@ ACTION_CATALOG: dict[str, Action] = {
         Action("exports:download", "Download exports", True, True),
         Action("members:manage", "Manage members", False, False),
         Action("billing:view", "View billing", False, False),
+        Action("content:cancel", "Cancel scheduled/queued content", True, True),
     ]
 }
 
